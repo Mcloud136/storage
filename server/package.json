@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "hono": "^4.6.13",
+    "hono": "^4.12.18",
     "redis": "^4.7.1"
   }
 }
