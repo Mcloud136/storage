@@ -12,13 +12,14 @@ export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
-    // 如果没有配置认证，返回成功
+    // 未配置管理员账号时后台整体 fail-closed，不再返回“无需登录”。
     if (!isAuthRequired(env)) {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: '无需登录',
-        authRequired: false 
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'ADMIN_NOT_CONFIGURED',
+        message: '管理员账号未配置，请先设置 BASIC_USER 与 BASIC_PASS。'
       }), {
+        status: 503,
         headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -48,7 +49,11 @@ export async function onRequestPost(context) {
       }), {
         headers: { 
           'Content-Type': 'application/json',
-          'Set-Cookie': createSessionCookieHeader(sessionToken)
+          'Set-Cookie': createSessionCookieHeader(
+            sessionToken,
+            undefined,
+            new URL(request.url).protocol === 'https:'
+          )
         }
       });
     }

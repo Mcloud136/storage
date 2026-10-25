@@ -17,6 +17,13 @@ function parseCookies(cookieHeader = '') {
   return result;
 }
 
+function timingSafeEqualStrings(a, b) {
+  const left = Buffer.from(String(a ?? ''));
+  const right = Buffer.from(String(b ?? ''));
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
 class AuthService {
   constructor(db, config) {
     this.db = db;
@@ -42,7 +49,10 @@ class AuthService {
       const user = decoded.slice(0, separator);
       const pass = decoded.slice(separator + 1);
 
-      if (user === this.config.basicUser && pass === this.config.basicPass) {
+      if (
+        timingSafeEqualStrings(user, this.config.basicUser)
+        && timingSafeEqualStrings(pass, this.config.basicPass)
+      ) {
         return { authenticated: true, user, reason: 'basic-auth' };
       }
     } catch (error) {
@@ -90,19 +100,22 @@ class AuthService {
 
   createSessionCookie(token) {
     const maxAge = Math.floor(this.config.sessionDurationMs / 1000);
-    return `${this.config.sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}`;
+    const secure = String(this.config.publicBaseUrl || '').startsWith('https://') ? '; Secure' : '';
+    return `${this.config.sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure}`;
   }
 
   createClearSessionCookies() {
+    const secure = String(this.config.publicBaseUrl || '').startsWith('https://') ? '; Secure' : '';
     return [
-      `${this.config.sessionCookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`,
-      `${LEGACY_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`,
+      `${this.config.sessionCookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`,
+      `${LEGACY_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`,
     ];
   }
 
   checkAuthentication(request) {
     if (!this.isAuthRequired()) {
-      return { authenticated: true, reason: 'no-auth-required', user: 'anonymous' };
+      // 未配置管理员账号时 fail-closed：不再把匿名请求视为已登录。
+      return { authenticated: false, reason: 'admin-not-configured', user: '' };
     }
 
     const sessionToken = this.getSessionTokenFromRequest(request);

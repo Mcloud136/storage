@@ -232,12 +232,29 @@ function createApp() {
   }
 
   function requireAuth(c) {
+    const { authService } = getServices(c);
+    if (!authService.isAuthRequired()) {
+      return jsonError(
+        c,
+        503,
+        'ADMIN_AUTH_NOT_CONFIGURED',
+        'Admin authentication is not configured.',
+        'Set BASIC_USER and BASIC_PASS. Admin endpoints fail closed.'
+      );
+    }
     const result = authResult(c);
     if (!result.authenticated) {
       return jsonError(c, 401, 'UNAUTHORIZED', 'Authentication required.', result.reason || 'Unauthorized');
     }
     c.set('auth', result);
     return null;
+  }
+
+  function timingSafeEqualStrings(a, b) {
+    const left = Buffer.from(String(a ?? ''));
+    const right = Buffer.from(String(b ?? ''));
+    if (left.length !== right.length) return false;
+    return crypto.timingSafeEqual(left, right);
   }
 
   // Requirement #1: the admin API fails closed when auth is not configured.
@@ -1268,7 +1285,13 @@ function createApp() {
     const { authService } = getServices(c);
 
     if (!authService.isAuthRequired()) {
-      return c.json({ success: true, authRequired: false, message: 'No login required.' });
+      return jsonError(
+        c,
+        503,
+        'ADMIN_AUTH_NOT_CONFIGURED',
+        'Admin authentication is not configured.',
+        'Set BASIC_USER and BASIC_PASS. Login fails closed.'
+      );
     }
 
     const body = await c.req.json().catch(() => ({}));
@@ -1285,7 +1308,10 @@ function createApp() {
       );
     }
 
-    if (username !== container.config.basicUser || password !== container.config.basicPass) {
+    if (
+      !timingSafeEqualStrings(username, container.config.basicUser)
+      || !timingSafeEqualStrings(password, container.config.basicPass)
+    ) {
       return jsonError(
         c,
         401,
@@ -2618,6 +2644,12 @@ function createApp() {
         maxBytes: Math.min(container.config.uploadSmallFileThreshold, container.config.uploadMaxSize),
       });
     } catch (error) {
+      if (error?.code === 'SSRF_BLOCKED') {
+        return jsonError(c, 403, 'SSRF_BLOCKED', '该 URL 不允许访问。', error.message);
+      }
+      if (error?.code === 'INVALID_URL') {
+        return jsonError(c, 400, 'INVALID_URL', 'URL 格式无效。', error.message);
+      }
       const normalized = normalizeUploadError(c, error, 502);
       return c.json({ ...normalized, traceId: getTraceId(c) }, 502);
     }
@@ -2632,9 +2664,11 @@ function createApp() {
   // --- Chunk upload ---
   app.post('/api/chunked-upload/init', async (c) => {
     const { authService, chunkService } = getServices(c);
-    const auth = authService.checkAuthentication(c.req.raw);
-    if (!auth.authenticated && authService.isAuthRequired()) {
-      return jsonError(c, 403, 'GUEST_CHUNK_DISABLED', 'Guest users cannot use chunk upload.', 'Login required for chunk uploads.');
+    if (!authService.isAuthRequired()) {
+      return jsonError(c, 503, 'ADMIN_AUTH_NOT_CONFIGURED', 'Admin authentication is not configured.', 'Set BASIC_USER and BASIC_PASS.');
+    }
+    if (!authService.checkAuthentication(c.req.raw).authenticated) {
+      return jsonError(c, 401, 'UNAUTHORIZED', 'Authentication required.', 'Login required for chunk uploads.');
     }
 
     const body = await c.req.json().catch(() => ({}));
@@ -2705,7 +2739,7 @@ function createApp() {
 
   app.post('/api/chunked-upload/chunk', async (c) => {
     const { authService, chunkService } = getServices(c);
-    const unauthorized = authService.isAuthRequired() ? requireAuth(c) : null;
+    const unauthorized = requireAuth(c);
     if (unauthorized) return unauthorized;
 
     const body = await c.req.parseBody();
@@ -2725,7 +2759,7 @@ function createApp() {
 
   app.post('/api/chunked-upload/complete', async (c) => {
     const { authService, chunkService } = getServices(c);
-    const unauthorized = authService.isAuthRequired() ? requireAuth(c) : null;
+    const unauthorized = requireAuth(c);
     if (unauthorized) return unauthorized;
 
     const body = await c.req.json().catch(() => ({}));
@@ -3456,13 +3490,14 @@ function createApp() {
       FILE_URL_SECRET: container.config.configEncryptionKey,
     };
 
-    // Verify webhook secret if configured
+    // Webhook 必须有密钥；缺失时 fail-closed。
     const expectedSecret = env.TG_WEBHOOK_SECRET || env.TELEGRAM_WEBHOOK_SECRET;
-    if (expectedSecret) {
-      const headerSecret = c.req.header('X-Telegram-Bot-Api-Secret-Token') || '';
-      if (headerSecret !== expectedSecret) {
-        return c.json({ ok: false, error: 'Invalid webhook secret.' }, 401);
-      }
+    if (!expectedSecret) {
+      return c.json({ ok: false, error: 'TG_WEBHOOK_SECRET is not configured.' }, 503);
+    }
+    const headerSecret = c.req.header('X-Telegram-Bot-Api-Secret-Token') || '';
+    if (!timingSafeEqualStrings(headerSecret, expectedSecret)) {
+      return c.json({ ok: false, error: 'Invalid webhook secret.' }, 401);
     }
 
     let update;
@@ -3480,6 +3515,14 @@ function createApp() {
     const media = getTelegramFileFromMessage(message);
     if (!media) {
       return c.json({ ok: true, ignored: 'message-without-file' });
+    }
+
+    const expectedChat = String(telegramConfig.chatId || '').trim();
+    const chatMatches = expectedChat.startsWith('@')
+      ? String(message?.chat?.username || '').toLowerCase() === expectedChat.slice(1).toLowerCase()
+      : String(message?.chat?.id ?? '') === expectedChat;
+    if (!expectedChat || !chatMatches) {
+      return c.json({ ok: true, ignored: 'chat-mismatch' });
     }
 
     const useSigned = shouldUseSignedTelegramLinks(env);

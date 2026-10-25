@@ -19,7 +19,7 @@ export async function onRequestPost(context) {
 
     const isAdmin = isAuthRequired(env)
       ? (await checkAuthentication(context)).authenticated
-      : true;
+      : false;
 
     if (!isAdmin) {
       const guestCheck = await checkGuestUpload(request, env, 0);

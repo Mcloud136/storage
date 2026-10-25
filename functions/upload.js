@@ -1,4 +1,3 @@
-import { errorHandling, telemetryData } from "./utils/middleware.js";
 import { checkAuthentication, isAuthRequired } from "./utils/auth.js";
 import { checkGuestUpload, incrementGuestCount } from "./utils/guest.js";
 import { createS3Client } from "./utils/s3client.js";
@@ -52,9 +51,6 @@ export async function onRequestPost(context) {
   try {
     const clonedRequest = request.clone();
     const formData = await clonedRequest.formData();
-
-    await errorHandling(context);
-    telemetryData(context);
 
     const uploadFile = formData.get("file");
     if (!uploadFile) {
@@ -146,7 +142,8 @@ export async function onRequestPost(context) {
 
 async function isUserAuthenticated(context) {
   const { env } = context;
-  if (!isAuthRequired(env)) return true;
+  // 未配置管理员账号时不再把所有人当管理员；上传走访客策略（GUEST_UPLOAD）。
+  if (!isAuthRequired(env)) return false;
   try {
     const auth = await checkAuthentication(context);
     return auth.authenticated;

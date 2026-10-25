@@ -18,11 +18,12 @@ export async function onRequestPost(context) {
       await deleteSession(sessionToken, env);
     }
 
+    const isHttps = new URL(request.url).protocol === 'https:';
     const headers = new Headers({
       "Content-Type": "application/json",
-      "Set-Cookie": createClearSessionCookieHeader(),
+      "Set-Cookie": createClearSessionCookieHeader(isHttps),
     });
-    headers.append("Set-Cookie", createLegacyClearSessionCookieHeader());
+    headers.append("Set-Cookie", createLegacyClearSessionCookieHeader(isHttps));
 
     return new Response(
       JSON.stringify({

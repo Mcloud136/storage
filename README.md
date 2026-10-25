@@ -257,6 +257,15 @@ curl -i -X POST "http://localhost:8080/api/auth/login" \
 
 安全提示：请勿泄露或提交 `.env` 内 token/secret（如 `TG_BOT_TOKEN`、`DISCORD_BOT_TOKEN`、`HF_TOKEN`、`SESSION_SECRET`、`CONFIG_ENCRYPTION_KEY`）；若疑似泄露请立即轮换并重启服务。
 
+### 安全热修（2026-10-26）
+
+本次更新收紧了默认安全行为，升级前请确认以下两项：
+
+1. **后台 fail-closed**：必须设置 `BASIC_USER` 与 `BASIC_PASS`。未设置时 `/api/manage/*`、`/api/admin/*`、`POST /api/auth/login`、`POST /api/ui-config` 返回 503；上传仅在 `GUEST_UPLOAD=true` 时按访客限额放行，否则返回 401。
+2. **Telegram Webhook 必须带密钥**：设置 `TG_WEBHOOK_SECRET` 后重新部署，并重新调用 `setWebhook` 带上同名 `secret_token`；未设置时 `/api/telegram/webhook` 返回 503。收到更新时还会校验 `message.chat.id` 与 `TG_CHAT_ID` 一致，不匹配的消息会被忽略。
+
+同时移除了作者硬编码的 Sentry 遥测（不再上报任何请求头）与无鉴权的 `/api/r2/upload` 死路由。
+
 ---
 
 ## 存储配置

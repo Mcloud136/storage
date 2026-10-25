@@ -79,43 +79,88 @@ class UploadService {
     folderPath,
     maxBytes = 20 * 1024 * 1024,
   }) {
-    const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      throw new Error('仅支持 HTTP/HTTPS URL。');
+    const { assertSafeRemoteUrl, validateRedirectLocation, MAX_REDIRECTS } = require('../utils/ssrf-guard');
+
+    let currentUrl = new URL(url);
+    if (!['http:', 'https:'].includes(currentUrl.protocol)) {
+      const error = new Error('仅支持 HTTP/HTTPS URL。');
+      error.code = 'INVALID_URL';
+      throw error;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-    let response;
+    let response = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      const safety = await assertSafeRemoteUrl(currentUrl.href);
+      if (!safety.ok) {
+        const error = new Error(safety.message || 'Unsafe remote URL.');
+        error.code = safety.code;
+        throw error;
+      }
 
-    try {
-      response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'K-Vault/2.0 (+https://github.com/katelya77/K-Vault)',
-          Accept: '*/*',
-        },
-      });
-    } finally {
-      clearTimeout(timeout);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        response = await fetch(currentUrl.href, {
+          redirect: 'manual',
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'K-Vault/2.0 (+https://github.com/katelya77/K-Vault)',
+            Accept: '*/*',
+          },
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location') || '';
+        if (!location) throw new Error('远程地址返回了缺少 Location 的重定向。');
+        const redirectCheck = validateRedirectLocation(location, currentUrl);
+        if (!redirectCheck.ok) throw new Error(redirectCheck.message || 'Unsafe redirect target.');
+        currentUrl = redirectCheck.url;
+        continue;
+      }
+      break;
     }
 
+    if (!response) {
+      throw new Error('远程地址重定向次数过多。');
+    }
     if (!response.ok) {
       throw new Error(`目标 URL 响应异常：${response.status}。`);
     }
 
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    const arrayBuffer = await response.arrayBuffer();
+    const contentLength = Number(response.headers.get('content-length') || 0);
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw new Error(`远程文件超过大小限制（${Math.floor(maxBytes / 1024 / 1024)}MB）。`);
+    }
 
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('目标 URL 响应没有正文。');
+    const chunks = [];
+    let received = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
+        if (received > maxBytes) {
+          throw new Error(`远程文件超过大小限制（${Math.floor(maxBytes / 1024 / 1024)}MB）。`);
+        }
+        chunks.push(Buffer.from(value));
+      }
+    } catch (error) {
+      try { await reader.cancel(); } catch { /* noop */ }
+      throw error;
+    }
+
+    const arrayBuffer = Buffer.concat(chunks, received);
     if (arrayBuffer.byteLength === 0) {
       throw new Error('目标 URL 返回了空文件。');
     }
 
-    if (arrayBuffer.byteLength > maxBytes) {
-      throw new Error(`远程文件超过大小限制（${Math.floor(maxBytes / 1024 / 1024)}MB）。`);
-    }
-
-    let fileName = decodeURIComponent(parsedUrl.pathname.split('/').pop() || '').trim();
+    let fileName = decodeURIComponent(currentUrl.pathname.split('/').pop() || '').trim();
     if (!fileName) {
       fileName = `url_${Date.now()}`;
     }

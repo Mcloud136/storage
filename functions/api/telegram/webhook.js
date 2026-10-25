@@ -25,11 +25,13 @@ export async function onRequestPost(context) {
   }
 
   const expectedSecret = env.TG_WEBHOOK_SECRET || env.TELEGRAM_WEBHOOK_SECRET;
-  if (expectedSecret) {
-    const headerSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '';
-    if (headerSecret !== expectedSecret) {
-      return jsonResponse({ ok: false, error: 'Invalid webhook secret.' }, 401);
-    }
+  if (!expectedSecret) {
+    return jsonResponse({ ok: false, error: 'TG_WEBHOOK_SECRET is not configured.' }, 503);
+  }
+
+  const headerSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '';
+  if (!timingSafeEqual(headerSecret, expectedSecret)) {
+    return jsonResponse({ ok: false, error: 'Invalid webhook secret.' }, 401);
   }
 
   let update;
@@ -47,6 +49,14 @@ export async function onRequestPost(context) {
   const media = getTelegramFileFromMessage(message);
   if (!media) {
     return jsonResponse({ ok: true, ignored: 'message-without-file' });
+  }
+
+  const expectedChat = String(env.TG_Chat_ID || '').trim();
+  const chatMatches = expectedChat.startsWith('@')
+    ? String(message?.chat?.username || '').toLowerCase() === expectedChat.slice(1).toLowerCase()
+    : String(message?.chat?.id ?? '') === expectedChat;
+  if (!expectedChat || !chatMatches) {
+    return jsonResponse({ ok: true, ignored: 'chat-mismatch' });
   }
 
   const useSigned = shouldUseSignedTelegramLinks(env);
@@ -125,6 +135,17 @@ export async function onRequestPost(context) {
     },
     reply,
   });
+}
+
+function timingSafeEqual(a, b) {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < left.length; i += 1) {
+    mismatch |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return mismatch === 0;
 }
 
 function jsonResponse(body, status = 200) {

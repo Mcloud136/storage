@@ -139,12 +139,18 @@ export async function onRequestPost(context) {
     return missingKvBindingResponse();
   }
 
-  if (isAuthRequired(context.env)) {
-    const auth = await checkAuthentication(context);
-    if (!auth.authenticated) {
-      console.warn('[ui-config] Unauthorized write attempt blocked.');
-      return apiError('UNAUTHORIZED', '需要先登录管理员账号。', 401);
-    }
+  if (!isAuthRequired(context.env)) {
+    return apiError(
+      'ADMIN_NOT_CONFIGURED',
+      'UI 配置写操作需要先配置 BASIC_USER 与 BASIC_PASS。',
+      503
+    );
+  }
+
+  const auth = await checkAuthentication(context);
+  if (!auth.authenticated) {
+    console.warn('[ui-config] Unauthorized write attempt blocked.');
+    return apiError('UNAUTHORIZED', '需要先登录管理员账号。', 401);
   }
 
   let body = {};

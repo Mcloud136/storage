@@ -35,7 +35,7 @@ const STORAGE_LIMITS = {
   telegram: { maxBytes: 50 * MB, message: 'Telegram uploads are capped at 50MB.' },
 };
 
-class ImportError extends Error {
+export class ImportError extends Error {
   constructor(code, message, status = 400) {
     super(message);
     this.code = code;
@@ -79,7 +79,7 @@ async function sha256HexBuffer(buffer) {
 }
 
 /** Strict remote fetch with SSRF checks on every redirect hop. */
-async function fetchRemoteStrict(rawUrl, maxBytes) {
+export async function fetchRemoteStrict(rawUrl, maxBytes) {
   let currentUrl;
   try {
     currentUrl = new URL(String(rawUrl || '').trim());

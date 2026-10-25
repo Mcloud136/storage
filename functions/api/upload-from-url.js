@@ -3,6 +3,9 @@ import { uploadToDiscord } from "../utils/discord.js";
 import { hasHuggingFaceConfig, uploadToHuggingFace } from "../utils/huggingface.js";
 import { hasWebDAVConfig, normalizeWebDAVPath, uploadToWebDAV } from "../utils/webdav.js";
 import { hasGitHubConfig, normalizeGitHubStoragePath, uploadToGitHub } from "../utils/github.js";
+import { checkAuthentication, isAuthRequired } from "../utils/auth.js";
+import { checkGuestUpload, incrementGuestCount } from "../utils/guest.js";
+import { fetchRemoteStrict, ImportError } from "./v1/import.js";
 import {
   buildTelegramDirectLink,
   buildTelegramBotApiUrl,
@@ -15,7 +18,6 @@ import {
 } from "../utils/telegram.js";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
-const FETCH_TIMEOUT = 30000;
 const MB = 1024 * 1024;
 
 export async function onRequestPost(context) {
@@ -31,22 +33,36 @@ export async function onRequestPost(context) {
       return jsonResponse({ error: "请输入 URL" }, 400);
     }
 
-    let parsedUrl;
-    try {
-      parsedUrl = new URL(url);
-      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-        return jsonResponse({ error: "仅支持 HTTP/HTTPS URL" }, 400);
+    const isAdmin = isAuthRequired(env)
+      ? (await checkAuthentication(context)).authenticated
+      : false;
+
+    if (!isAdmin) {
+      const guestCheck = await checkGuestUpload(request, env, 0);
+      if (!guestCheck.allowed) {
+        return jsonResponse({ error: guestCheck.reason }, guestCheck.status || 403);
       }
-    } catch {
-      return jsonResponse({ error: "URL 格式无效" }, 400);
     }
 
-    const fetched = await fetchRemote(url);
-    if (!fetched.ok) {
-      return jsonResponse({ error: fetched.error }, fetched.status || 502);
+    const finish = async (response) => {
+      if (!isAdmin && response instanceof Response && response.ok) {
+        await incrementGuestCount(request, env);
+      }
+      return response;
+    };
+
+    const fetchLimit = storageMode === "telegram" ? 20 * MB : MAX_FILE_SIZE;
+    let fetched;
+    try {
+      fetched = await fetchRemoteStrict(url, fetchLimit);
+    } catch (error) {
+      if (error instanceof ImportError) {
+        return jsonResponse({ error: error.message }, error.status || 400);
+      }
+      throw error;
     }
 
-    const arrayBuffer = fetched.arrayBuffer;
+    const arrayBuffer = fetched.buffer;
     const fileSize = arrayBuffer.byteLength;
     if (!fileSize) {
       return jsonResponse({ error: "Remote file is empty" }, 400);
@@ -58,109 +74,68 @@ export async function onRequestPost(context) {
       );
     }
 
+    if (!isAdmin) {
+      const guestSizeCheck = await checkGuestUpload(request, env, fileSize);
+      if (!guestSizeCheck.allowed) {
+        return jsonResponse({ error: guestSizeCheck.reason }, guestSizeCheck.status || 413);
+      }
+    }
+
     const storageValidation = validateStorageSize(storageMode, fileSize);
     if (!storageValidation.ok) {
       return jsonResponse({ error: storageValidation.message }, storageValidation.status);
     }
 
     const contentType = fetched.contentType || "application/octet-stream";
-    const fileName = buildFileName(parsedUrl, contentType);
+    const fileName = buildFileName(new URL(fetched.finalUrl), contentType);
     const fileExtension = getFileExtension(fileName);
 
     if (storageMode === "r2") {
       if (!env.R2_BUCKET) {
         return jsonResponse({ error: "R2 未配置" }, 400);
       }
-      return await uploadToR2(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath);
+      return finish(await uploadToR2(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath));
     }
 
     if (storageMode === "s3") {
       if (!env.S3_ENDPOINT || !env.S3_ACCESS_KEY_ID) {
         return jsonResponse({ error: "S3 未配置" }, 400);
       }
-      return await uploadToS3(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath);
+      return finish(await uploadToS3(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath));
     }
 
     if (storageMode === "discord") {
       if (!env.DISCORD_WEBHOOK_URL && !env.DISCORD_BOT_TOKEN) {
         return jsonResponse({ error: "Discord 未配置" }, 400);
       }
-      return await uploadToDiscordStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath);
+      return finish(await uploadToDiscordStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath));
     }
 
     if (storageMode === "huggingface") {
       if (!hasHuggingFaceConfig(env)) {
         return jsonResponse({ error: "HuggingFace 未配置" }, 400);
       }
-      return await uploadToHFStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath);
+      return finish(await uploadToHFStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath));
     }
 
     if (storageMode === "webdav") {
       if (!hasWebDAVConfig(env)) {
         return jsonResponse({ error: "WebDAV 未配置" }, 400);
       }
-      return await uploadToWebDAVStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath);
+      return finish(await uploadToWebDAVStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath));
     }
 
     if (storageMode === "github") {
       if (!hasGitHubConfig(env)) {
         return jsonResponse({ error: "GitHub 未配置" }, 400);
       }
-      return await uploadToGitHubStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath);
+      return finish(await uploadToGitHubStorage(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, folderPath));
     }
 
-    return await uploadToTelegram(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, new URL(request.url).origin, folderPath);
+    return finish(await uploadToTelegram(arrayBuffer, fileName, fileExtension, contentType, fileSize, env, new URL(request.url).origin, folderPath));
   } catch (error) {
     console.error("URL upload error:", error);
     return jsonResponse({ error: `服务器错误：${error.message}` }, 500);
-  }
-}
-
-async function fetchRemote(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 K-Vault URL Uploader",
-        Accept: "image/*,video/*,audio/*,application/*,*/*",
-      },
-    });
-
-    if (!response.ok) {
-      return {
-        ok: false,
-        status: 502,
-        error: `远程 URL 响应异常：${response.status} ${response.statusText}`,
-      };
-    }
-
-    const contentType = response.headers.get("content-type") || "application/octet-stream";
-    const arrayBuffer = await response.arrayBuffer();
-
-    return {
-      ok: true,
-      contentType,
-      arrayBuffer,
-    };
-  } catch (error) {
-    if (error.name === "AbortError") {
-      return {
-        ok: false,
-        status: 408,
-        error: "远程 URL 请求超时",
-      };
-    }
-
-    return {
-      ok: false,
-      status: 502,
-      error: `无法获取远程 URL：${error.message}`,
-    };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

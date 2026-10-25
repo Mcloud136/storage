@@ -26,11 +26,12 @@ export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
-    if (isAuthRequired(env)) {
-      const auth = await checkAuthentication(context);
-      if (!auth.authenticated) {
-        return jsonResponse({ error: 'Unauthorized' }, 401);
-      }
+    if (!isAuthRequired(env)) {
+      return jsonResponse({ error: 'ADMIN_NOT_CONFIGURED' }, 503);
+    }
+    const auth = await checkAuthentication(context);
+    if (!auth.authenticated) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
     }
 
     if (!env.img_url) {

@@ -7,6 +7,17 @@ const SESSION_COOKIE_NAME = 'k_vault_session';
 const LEGACY_SESSION_COOKIE_NAME = 'katelya_session';
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24小时
 
+function timingSafeEqualString(a, b) {
+  const left = String(a ?? '');
+  const right = String(b ?? '');
+  if (left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < left.length; i += 1) {
+    mismatch |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 /**
  * 生成会话令牌
  */
@@ -36,7 +47,7 @@ export function verifyBasicAuth(request, env) {
     const user = decoded.substring(0, index);
     const pass = decoded.substring(index + 1);
 
-    if (env.BASIC_USER === user && env.BASIC_PASS === pass) {
+    if (timingSafeEqualString(env.BASIC_USER, user) && timingSafeEqualString(env.BASIC_PASS, pass)) {
       return { user, authenticated: true };
     }
   } catch (e) {
@@ -115,19 +126,19 @@ export async function deleteSession(sessionToken, env) {
 /**
  * 创建带会话 Cookie 的响应
  */
-export function createSessionCookieHeader(token, maxAge = SESSION_DURATION / 1000) {
-  return `${SESSION_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}`;
+export function createSessionCookieHeader(token, maxAge = SESSION_DURATION / 1000, secure = true) {
+  return `${SESSION_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure ? '; Secure' : ''}`;
 }
 
 /**
  * 创建清除会话 Cookie 的响应头
  */
-export function createClearSessionCookieHeader() {
-  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+export function createClearSessionCookieHeader(secure = true) {
+  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`;
 }
 
-export function createLegacyClearSessionCookieHeader() {
-  return `${LEGACY_SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+export function createLegacyClearSessionCookieHeader(secure = true) {
+  return `${LEGACY_SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`;
 }
 
 /**
@@ -147,9 +158,9 @@ export function isAuthRequired(env) {
 export async function checkAuthentication(context) {
   const { request, env } = context;
   
-  // 如果没有配置认证，直接放行
+  // 未配置管理员账号时不再视为已登录；管理端与上传按 fail-closed / 访客策略处理。
   if (!isAuthRequired(env)) {
-    return { authenticated: true, reason: 'no-auth-required' };
+    return { authenticated: false, reason: 'admin-not-configured' };
   }
   
   // 检查 Cookie 会话
