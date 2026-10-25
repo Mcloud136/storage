@@ -3,9 +3,12 @@ const assert = require('assert');
 class MemoryKV {
   constructor() {
     this.store = new Map();
+    this.putCalls = 0;
+    this.getWithMetadataCalls = 0;
   }
 
   async put(key, value = '', options = {}) {
+    this.putCalls += 1;
     this.store.set(String(key), {
       value: String(value ?? ''),
       metadata: options?.metadata || null,
@@ -50,6 +53,7 @@ class MemoryKV {
   }
 
   async getWithMetadata(key) {
+    this.getWithMetadataCalls += 1;
     const entry = this.store.get(String(key));
     if (!entry) return null;
     return {
@@ -232,13 +236,15 @@ describe('API v1 middleware auth', function () {
     assert.strictEqual(response.status, 200);
     assert.strictEqual(nextCalled, true);
 
+    const stat = await env.img_url.get(`token_stat:${tokenInfo.id}`, { type: 'json' });
+    assert.ok(Number(stat?.lastUsedAt || 0) > 0);
     const tokenRecord = await env.img_url.get(`api_token:${tokenInfo.id}`, { type: 'json' });
-    assert.ok(Number(tokenRecord?.lastUsedAt || 0) > 0);
+    assert.ok(!tokenRecord || tokenRecord.lastUsedAt == null);
   });
 });
 
 describe('API v1 file share limits', function () {
-  async function invokeV1FileGet({ env, token, fileId = 'r2:file.bin', query = '' }) {
+  async function invokeV1FileGet({ env, token, fileId = 'r2:file.bin', query = '', headers = {} }) {
     const { onRequest: middleware } = await import('../functions/api/v1/_middleware.js');
     const { onRequest: fileRoute } = await import('../functions/api/v1/file/[id].js');
 
@@ -246,7 +252,7 @@ describe('API v1 file share limits', function () {
     const requestUrl = `https://example.com/api/v1/file/${encodedId}${query ? `?${query}` : ''}`;
     const request = new Request(requestUrl, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...headers },
     });
 
     const waiters = [];
@@ -348,5 +354,114 @@ describe('API v1 file share limits', function () {
     assert.strictEqual(response.status, 200);
     const record = await scenario.env.img_url.getWithMetadata(scenario.fileKey);
     assert.strictEqual(Number(record?.metadata?.shareDownloadCount || 0), 1);
+  });
+
+  it('serves R2 byte ranges for media previews', async function () {
+    const scenario = await createFileScenario();
+
+    const response = await invokeV1FileGet({
+      ...scenario,
+      headers: { Range: 'bytes=1-2' },
+    });
+
+    assert.strictEqual(response.status, 206);
+    assert.strictEqual(response.headers.get('Accept-Ranges'), 'bytes');
+    assert.strictEqual(response.headers.get('Content-Range'), 'bytes 1-2/4');
+    assert.strictEqual(response.headers.get('Content-Length'), '2');
+
+    const body = new Uint8Array(await response.arrayBuffer());
+    assert.deepStrictEqual(Array.from(body), [2, 3]);
+  });
+});
+
+
+describe('API v1 upload low-KV-write mode', function () {
+  function createLowWriteEnv() {
+    return {
+      img_url: new MemoryKV(),
+      R2_BUCKET: new MemoryR2(),
+      TG_Bot_Token: 'test-bot-token',
+      TG_Chat_ID: '-1001234567890',
+      FILE_URL_SECRET: 'test-file-url-secret',
+      MINIMIZE_KV_WRITES: 'true',
+      TELEGRAM_METADATA_MODE: 'off',
+      TG_UPLOAD_NOTIFY: 'false',
+      disable_telemetry: 'true',
+    };
+  }
+
+  function mockTelegramFetch() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      assert.match(String(url), /\/sendDocument$/);
+      return new Response(JSON.stringify({
+        ok: true,
+        result: { message_id: 42, document: { file_id: 'telegram-image-file-id' } },
+      }), { headers: { 'Content-Type': 'application/json' } });
+    };
+    return () => {
+      globalThis.fetch = originalFetch;
+    };
+  }
+
+  it('uploads signed Telegram files without metadata KV access when metadata is disabled', async function () {
+    const { onRequestPost: upload } = await import('../functions/api/v1/upload.js');
+    const env = createLowWriteEnv();
+
+    const formData = new FormData();
+    formData.append('file', new Blob(['image-bytes'], { type: 'image/png' }), 'image.png');
+
+    const restoreFetch = mockTelegramFetch();
+    try {
+      const readsBefore = env.img_url.getWithMetadataCalls;
+      const writesBefore = env.img_url.putCalls;
+      const response = await upload({
+        request: new Request('https://example.com/api/v1/upload', { method: 'POST', body: formData }),
+        env,
+        data: { apiToken: { id: 'test-token' } },
+        next: () => new Response('next', { status: 200 }),
+      });
+      const payload = await parseJson(response);
+
+      assert.strictEqual(response.status, 200);
+      assert.match(payload.links.download, /\/file\/tgs_/);
+      assert.strictEqual(payload.links.delete, null);
+      assert.strictEqual(env.img_url.getWithMetadataCalls, readsBefore, 'post-upload metadata lookup must be skipped');
+      assert.strictEqual(env.img_url.putCalls, writesBefore, 'no KV writes are expected without dedup/idempotency');
+    } finally {
+      restoreFetch();
+    }
+  });
+
+  it('ignores Telegram sharing options when metadata is disabled', async function () {
+    const { onRequestPost: upload } = await import('../functions/api/v1/upload.js');
+    const env = createLowWriteEnv();
+
+    const formData = new FormData();
+    formData.append('file', new Blob(['image-bytes'], { type: 'image/png' }), 'image.png');
+    formData.append('password', 'secret');
+    formData.append('expires_in', '86400');
+    formData.append('max_downloads', '3');
+    formData.append('slug', 'ignored-share-link');
+
+    const restoreFetch = mockTelegramFetch();
+    try {
+      const readsBefore = env.img_url.getWithMetadataCalls;
+      const writesBefore = env.img_url.putCalls;
+      const response = await upload({
+        request: new Request('https://example.com/api/v1/upload', { method: 'POST', body: formData }),
+        env,
+        data: { apiToken: { id: 'test-token' } },
+        next: () => new Response('next', { status: 200 }),
+      });
+      const payload = await parseJson(response);
+
+      assert.strictEqual(response.status, 200);
+      assert.strictEqual(payload.links.delete, null);
+      assert.strictEqual(env.img_url.getWithMetadataCalls, readsBefore, 'metadata lookup must be skipped');
+      assert.strictEqual(env.img_url.putCalls, writesBefore, 'sharing options must not trigger KV writes');
+    } finally {
+      restoreFetch();
+    }
   });
 });

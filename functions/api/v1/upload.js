@@ -1,9 +1,63 @@
 import { onRequestPost as uploadInternal } from '../../upload.js';
-import { parseSignedTelegramFileId } from '../../utils/telegram.js';
+import { parseSignedTelegramFileId, shouldWriteTelegramMetadata } from '../../utils/telegram.js';
+import { checkUploadPolicy } from '../../utils/policy-enforce.js';
 import { apiError, apiSuccess, buildAbsoluteUrl, parsePositiveInt } from '../../utils/api-v1.js';
 
 const STORAGE_PREFIXES = ['r2:', 's3:', 'discord:', 'hf:', 'webdav:', 'github:', 'img:', 'vid:', 'aud:', 'doc:', ''];
 const SHARE_SLUG_KEY_PREFIX = 'share_slug:';
+const IDEMPOTENCY_TTL_SECONDS = 24 * 3600;
+const DEDUP_TTL_SECONDS = 90 * 24 * 3600;
+const DEDUP_MAX_INLINE_BYTES = 25 * 1024 * 1024; // pre-upload dedup only for small files
+
+async function sha256HexBuffer(buffer) {
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function idempotencyStoreKey(tokenId, rawKey) {
+  return `idem:${String(tokenId || 'anon')}:${fnv1aHex(String(rawKey || ''))}`;
+}
+
+function fnv1aHex(input) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+async function persistUploadSideEffects(env, apiToken, idempotencyKey, contentSha256, info) {
+  if (!env?.img_url) return;
+  const body = {
+    success: true,
+    file: {
+      id: info.canonicalId || info.publicId,
+      name: info.fileName,
+      size: info.fileSize,
+      type: info.mime,
+      storage: info.storageType,
+      uploadedAt: new Date(info.uploadedAt || Date.now()).toISOString(),
+      ...(contentSha256 ? { sha256: contentSha256 } : {}),
+    },
+    links: {
+      download: buildAbsoluteUrl(info.request, `/file/${encodeURIComponent(info.publicId)}`),
+      share: buildAbsoluteUrl(info.request, `/s/${encodeURIComponent(info.shareId || info.publicId)}`),
+      delete: buildAbsoluteUrl(info.request, `/api/v1/file/${encodeURIComponent(info.canonicalId || info.publicId)}`),
+    },
+    deduplicated: false,
+  };
+  if (idempotencyKey) {
+    try {
+      await env.img_url.put(idempotencyStoreKey(apiToken?.id, idempotencyKey), JSON.stringify({ status: 200, body, createdAt: Date.now() }), { expirationTtl: IDEMPOTENCY_TTL_SECONDS });
+    } catch { /* snapshot failures are non-fatal */ }
+  }
+  if (contentSha256) {
+    try {
+      await env.img_url.put(`sha_dup:${contentSha256}`, JSON.stringify({ publicId: info.publicId, fileName: info.fileName, size: info.fileSize, mime: info.mime, storage: info.storageType, uploadedAt: body.file.uploadedAt }), { expirationTtl: DEDUP_TTL_SECONDS });
+    } catch { /* dedup index failures are non-fatal */ }
+  }
+}
 
 function normalizeStorageType(name = '', metadata = {}) {
   const explicit = metadata.storageType || metadata.storage;
@@ -188,6 +242,20 @@ function resolveUploadErrorStatus(status, message) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const apiToken = context.data?.apiToken || null;
+  // Idempotency replay (requirement #11): same key returns the saved response.
+  const idempotencyKey = String(request.headers.get('Idempotency-Key') || '').trim().slice(0, 200);
+  if (idempotencyKey && env?.img_url) {
+    try {
+      const saved = await env.img_url.get(idempotencyStoreKey(apiToken?.id, idempotencyKey), { type: 'json' });
+      if (saved?.status && saved?.body) {
+        return new Response(JSON.stringify(saved.body), {
+          status: saved.status,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Idempotency-Replayed': 'true' },
+        });
+      }
+    } catch { /* replay lookup failure is non-fatal */ }
+  }
 
   let formData;
   try {
@@ -210,6 +278,59 @@ export async function onRequestPost(context) {
   const normalizedSlug = sanitizeSlug(slug);
   if (slug && !normalizedSlug) {
     return apiError('VALIDATION_ERROR', '字段 "slug" 只能包含字母、数字、下划线或短横线。', 400);
+  }
+
+  // Per-token policy enforcement (requirement #10).
+  const folderPath = String(formData.get('folderPath') || formData.get('folder') || url.searchParams.get('folder') || '');
+  const deduplicate = String(formData.get('deduplicate') || url.searchParams.get('deduplicate') || '').toLowerCase() === 'true';
+  const policyCheck = checkUploadPolicy(apiToken, {
+    storage,
+    mime: file.type || mapMimeType(file.name, ''),
+    sizeBytes: file.size,
+    folderPath,
+    request,
+  });
+  if (!policyCheck.ok) {
+    return apiError(policyCheck.code, policyCheck.message, policyCheck.status);
+  }
+
+  // Content dedup for small uploads (requirement #11): identical content returns the existing object.
+  let contentSha256 = '';
+  if (deduplicate && file.size > 0 && file.size <= DEDUP_MAX_INLINE_BYTES && env?.img_url) {
+    try {
+      const bytes = await file.arrayBuffer();
+      contentSha256 = await sha256HexBuffer(bytes);
+      const existing = await env.img_url.get(`sha_dup:${contentSha256}`, { type: 'json' });
+      if (existing?.publicId) {
+        const dedupBody = {
+          success: true,
+          file: {
+            id: existing.publicId,
+            name: existing.fileName || file.name,
+            size: Number(existing.size || file.size),
+            type: existing.mime || file.type || mapMimeType(file.name, 'application/octet-stream'),
+            storage: existing.storage || storage || 'telegram',
+            uploadedAt: existing.uploadedAt || new Date().toISOString(),
+            sha256: contentSha256,
+          },
+          links: {
+            download: buildAbsoluteUrl(request, `/file/${encodeURIComponent(existing.publicId)}`),
+            share: buildAbsoluteUrl(request, `/s/${encodeURIComponent(existing.publicId)}`),
+            delete: buildAbsoluteUrl(request, `/api/v1/file/${encodeURIComponent(existing.publicId)}`),
+          },
+          deduplicated: true,
+        };
+        if (idempotencyKey) {
+          try {
+            await env.img_url.put(idempotencyStoreKey(apiToken?.id, idempotencyKey), JSON.stringify({ status: 200, body: dedupBody, createdAt: Date.now() }), { expirationTtl: IDEMPOTENCY_TTL_SECONDS });
+          } catch { /* non-fatal */ }
+        }
+        return new Response(JSON.stringify(dedupBody), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        });
+      }
+    } catch { /* dedup failures fall through to a normal upload */ }
   }
 
   const uploadForm = new FormData();
@@ -257,7 +378,14 @@ export async function onRequestPost(context) {
     return apiError('UPLOAD_FAILED', '上传响应中缺少文件标识。', 502);
   }
 
-  const lookup = await findRecordByFileId(env, publicId);
+  // Low-write mode: signed Telegram uploads skip the post-upload KV metadata
+  // probe entirely (password/expires_in/max_downloads/slug are ignored and
+  // no delete link is returned).
+  const signedTelegram = await parseSignedTelegramFileId(publicId, env);
+  const skipTelegramMetadata = Boolean(signedTelegram) && !shouldWriteTelegramMetadata(env);
+  const lookup = skipTelegramMetadata
+    ? null
+    : await findRecordByFileId(env, publicId);
   let metadata = lookup?.record?.metadata || {};
   if (lookup?.key) {
     try {
@@ -277,13 +405,25 @@ export async function onRequestPost(context) {
   }
 
   const canonicalId = lookup?.key || publicId;
-  const fileName = metadata.fileName || file.name || canonicalId;
-  const fileSize = Number(metadata.fileSize || file.size || 0);
-  const uploadedAtValue = Number(metadata.TimeStamp || Date.now());
+  const fileName = metadata.fileName || file.name || signedTelegram?.fileName || canonicalId;
+  const fileSize = Number(metadata.fileSize || signedTelegram?.fileSize || file.size || 0);
+  const uploadedAtValue = Number(metadata.TimeStamp || signedTelegram?.timestamp || Date.now());
   const shareSlug = lookup?.key
     ? (sanitizeSlug(metadata.shareSlug || '') || normalizedSlug)
     : '';
   const shareId = shareSlug || publicId;
+
+  await persistUploadSideEffects(env, apiToken, idempotencyKey, contentSha256, {
+    request,
+    publicId,
+    canonicalId,
+    fileName,
+    fileSize,
+    mime: mapMimeType(fileName, file.type || 'application/octet-stream'),
+    storageType: normalizeStorageType(canonicalId, metadata),
+    uploadedAt: uploadedAtValue,
+    shareId,
+  });
 
   return apiSuccess({
     file: {
@@ -297,7 +437,9 @@ export async function onRequestPost(context) {
     links: {
       download: buildAbsoluteUrl(request, `/file/${encodeURIComponent(publicId)}`),
       share: buildAbsoluteUrl(request, `/s/${encodeURIComponent(shareId)}`),
-      delete: buildAbsoluteUrl(request, `/api/v1/file/${encodeURIComponent(canonicalId)}`),
+      delete: skipTelegramMetadata
+        ? null
+        : buildAbsoluteUrl(request, `/api/v1/file/${encodeURIComponent(canonicalId)}`),
     },
   });
 }
@@ -308,3 +450,4 @@ export async function onRequest(context) {
   }
   return onRequestPost(context);
 }
+

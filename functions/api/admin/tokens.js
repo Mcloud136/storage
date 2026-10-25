@@ -2,26 +2,14 @@ import {
   createApiToken,
   getApiTokenScopes,
   listApiTokens,
+  parseExpiryInput,
 } from '../../utils/api-token.js';
-import { apiError, apiSuccess, parsePositiveInt } from '../../utils/api-v1.js';
+import { apiError, apiSuccess, tokenErrorResponse, parseTokenExpiryFromBody } from '../../utils/api-v1.js';
+import { writeAuditLog, AUDIT_EVENTS } from '../../utils/audit.js';
 
-function normalizeExpiryInput(body = {}) {
-  if (Object.prototype.hasOwnProperty.call(body, 'expiresAt')) {
-    return body.expiresAt;
-  }
-  if (Object.prototype.hasOwnProperty.call(body, 'expires_in')) {
-    const seconds = parsePositiveInt(body.expires_in, { defaultValue: 0, min: 1, max: 3650 * 24 * 3600 });
-    return seconds > 0 ? Date.now() + seconds * 1000 : null;
-  }
-  if (Object.prototype.hasOwnProperty.call(body, 'expiresIn')) {
-    const seconds = parsePositiveInt(body.expiresIn, { defaultValue: 0, min: 1, max: 3650 * 24 * 3600 });
-    return seconds > 0 ? Date.now() + seconds * 1000 : null;
-  }
-  if (Object.prototype.hasOwnProperty.call(body, 'expiresInDays')) {
-    const days = parsePositiveInt(body.expiresInDays, { defaultValue: 0, min: 1, max: 3650 });
-    return days > 0 ? Date.now() + days * 24 * 3600 * 1000 : null;
-  }
-  return null;
+function clientTag(request) {
+  const ua = String(request.headers.get('User-Agent') || '').slice(0, 60);
+  return ua || 'unknown';
 }
 
 export async function onRequest(context) {
@@ -56,15 +44,30 @@ export async function onRequest(context) {
   }
 
   try {
+    const expiry = parseTokenExpiryFromBody(body);
+    const expiresAt = expiry.kind === 'iso'
+      ? parseExpiryInput(expiry.value)
+      : (expiry.kind === 'ms' ? expiry.value : null);
+
     const created = await createApiToken(
       {
         name,
         scopes: body?.scopes || [],
-        expiresAt: normalizeExpiryInput(body),
+        expiresAt,
+        policies: body?.policies,
         enabled: body?.enabled !== false,
       },
       env
     );
+
+    await writeAuditLog(env, {
+      event: AUDIT_EVENTS.TOKEN_CREATED,
+      tokenId: created.record.id,
+      operation: 'admin.tokens.create',
+      success: true,
+      client: clientTag(request),
+      detail: `name="${created.record.name}" scopes=[${created.record.scopes.join(',')}]`,
+    });
 
     return apiSuccess(
       {
@@ -74,6 +77,6 @@ export async function onRequest(context) {
       201
     );
   } catch (error) {
-    return apiError('TOKEN_CREATE_FAILED', error.message || 'Failed to create API Token.', 400);
+    return tokenErrorResponse(error, 'TOKEN_CREATE_FAILED', 400);
   }
 }
