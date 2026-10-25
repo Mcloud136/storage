@@ -1235,7 +1235,7 @@
     <header class="topbar">
       <div class="title-group">
         <h1>文件预览</h1>
-        <p id="subtitle">K-Vault 本地预览器</p>
+        <p id="subtitle">MCloud 本地预览器</p>
       </div>
       <div class="actions">
         <button class="btn" type="button" id="copyBtn">复制直链</button>
@@ -1519,7 +1519,7 @@
       }
 
       function updateHeader() {
-        document.title = `${state.fileName} | K-Vault`;
+        document.title = `${state.fileName} | MCloud`;
         els.fileName.textContent = state.fileName;
         els.fileType.textContent = displayTypeName(state.kind, state.extension);
         els.subtitle.textContent = state.fileUrl;
@@ -2094,7 +2094,7 @@
         if (!LOCAL_ARCHIVE_EXTS.has(ext)) {
           renderCapabilitySummary({
             title: "压缩包已识别",
-            detail: "此压缩格式已进入增强预览候选。增强引擎不可用时，K-Vault 不会在本地回退模式整包下载解析，避免大文件阻塞浏览器。",
+            detail: "此压缩格式已进入增强预览候选。增强引擎不可用时，MCloud 不会在本地回退模式整包下载解析，避免大文件阻塞浏览器。",
             category: "归档容器",
             notes: [["策略", "ZIP/JAR/TAR/TAR.GZ 可本地读取目录。"], ["建议", "RAR、7Z、XZ、ZST 等格式使用增强预览或下载到本地工具打开。"]]
           });
@@ -2317,7 +2317,7 @@
         page.appendChild(createDataSummary([
           ["格式", state.extension.toUpperCase()],
           ["大小", state.fileSize > 0 ? formatSize(state.fileSize) : "未知"],
-          ["来源", "K-Vault 文件直链"],
+          ["来源", "MCloud 文件直链"],
           ["状态", "已加载"]
         ]));
 
@@ -2326,7 +2326,7 @@
         sample.style.fontFamily = `"${family}", sans-serif`;
         const large = document.createElement("p");
         large.className = "font-large";
-        large.textContent = "K-Vault 文件预览 0123456789";
+        large.textContent = "MCloud 文件预览 0123456789";
         const body = document.createElement("p");
         body.className = "font-body";
         body.textContent = "中文样张：轻量、清晰、可审阅。英文字符样张：Aa Bb Cc 0123456789。";
@@ -2594,7 +2594,7 @@
             match: ["dwg", "dxf", "dwf", "dwfx", "xps"],
             title: "工程图纸已识别",
             category: "工程图纸（CAD/DWF）",
-            detail: "K-Vault 已识别工程图纸类型。当前轻量预览提供安全摘要，完整矢量/图层渲染建议后续接入专用 CAD 渲染器。",
+            detail: "MCloud 已识别工程图纸类型。当前轻量预览提供安全摘要，完整矢量/图层渲染建议后续接入专用 CAD 渲染器。",
             notes: [["边界", "不在浏览器里执行不可信二进制指令。"], ["建议", "业务侧优先提供 PDF、DXF 或受控 CAD 预览服务。"]]
           },
           {
@@ -2666,7 +2666,7 @@
         return found || {
           title: "文件类型已识别",
           category: "其他文件",
-          detail: "当前格式暂未提供高保真在线渲染，K-Vault 会保留下载和直链能力。",
+          detail: "当前格式暂未提供高保真在线渲染，MCloud 会保留下载和直链能力。",
           notes: [["下一步", "可按真实业务样本补充专用预览链路。"], ["安全", "未知格式不会在预览页执行。"]]
         };
       }
