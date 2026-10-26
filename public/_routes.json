@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/vendor/*",
+    "/demo/*",
+    "/favicon.ico",
+    "/favicon.svg",
+    "/logo.png",
+    "/bg.svg",
+    "/admin-imgtc.css"
+  ]
+}

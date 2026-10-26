@@ -18,6 +18,7 @@
   },
   "include": [
     "src/**/*.ts",
+    "functions/**/*.ts",
     "test/v2/**/*.ts",
     "vitest.config.mts"
   ]
