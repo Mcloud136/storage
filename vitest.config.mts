@@ -5,6 +5,17 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
+      miniflare: {
+        bindings: {
+          BASIC_USER: 'admin',
+          BASIC_PASS: 'test-pass',
+          GUEST_UPLOAD: 'false',
+          TG_Bot_Token: '123:test-token',
+          TG_Chat_ID: '-1001234567890',
+          FILE_URL_SECRET: 'test-file-secret',
+          TELEGRAM_LINK_MODE: 'signed',
+        },
+      },
     }),
   ],
   test: {

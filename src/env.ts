@@ -9,7 +9,9 @@ export interface Env {
   GUEST_DAILY_LIMIT?: string;
 
   TG_Bot_Token?: string;
+  TG_BOT_TOKEN?: string;
   TG_Chat_ID?: string;
+  TG_CHAT_ID?: string;
   TG_WEBHOOK_SECRET?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
   CUSTOM_BOT_API_URL?: string;
@@ -17,8 +19,11 @@ export interface Env {
   TELEGRAM_LINK_MODE?: string;
   MINIMIZE_KV_WRITES?: string;
   TELEGRAM_METADATA_MODE?: string;
+  TELEGRAM_SKIP_METADATA?: string;
   TG_UPLOAD_NOTIFY?: string;
+  TELEGRAM_UPLOAD_NOTIFY?: string;
   FILE_URL_SECRET?: string;
+  TG_FILE_URL_SECRET?: string;
 
   HF_TOKEN?: string;
   HF_REPO?: string;
@@ -27,6 +32,7 @@ export interface Env {
   WEBDAV_USERNAME?: string;
   WEBDAV_PASSWORD?: string;
   WEBDAV_BEARER_TOKEN?: string;
+  WEBDAV_TOKEN?: string;
   WEBDAV_ROOT_PATH?: string;
 
   GITHUB_TOKEN?: string;
@@ -38,4 +44,5 @@ export interface Env {
   GITHUB_API_BASE?: string;
 
   API_CORS_ORIGINS?: string;
+  WhiteList_Mode?: string;
 }
