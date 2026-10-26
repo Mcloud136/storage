@@ -17,7 +17,7 @@ const CHUNK_SIZE = 5 * 1024 * 1024;
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const TELEGRAM_WEB_UPLOAD_LIMIT = 20 * 1024 * 1024;
 const HF_DIRECT_THRESHOLD = 20 * 1024 * 1024;
-const HF_DIRECT_MAX = 100 * 1024 * 1024;
+const HF_DIRECT_MAX = 5 * 1024 * 1024 * 1024;
 
 interface HfDirectTask {
   kind: 'multipart' | 'single' | 'exists';
@@ -136,9 +136,6 @@ chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
     return json({ error: `Storage backend "${storageMode}" is not implemented.` }, 501);
   }
 
-  if (fileSize > MAX_FILE_SIZE) {
-    return json({ error: `文件大小超过限制 (最大 ${MAX_FILE_SIZE / 1024 / 1024}MB)`, code: 'FILE_TOO_LARGE' }, 413);
-  }
   if (storageMode === 'telegram' && fileSize > TELEGRAM_WEB_UPLOAD_LIMIT) {
     return json(
       {
@@ -233,6 +230,9 @@ chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
     }
   }
 
+  if (fileSize > MAX_FILE_SIZE) {
+    return json({ error: `文件大小超过限制 (最大 ${MAX_FILE_SIZE / 1024 / 1024}MB)`, code: 'FILE_TOO_LARGE' }, 413);
+  }
   if (!totalChunks) {
     return json({ error: '缺少必要参数' }, 400);
   }

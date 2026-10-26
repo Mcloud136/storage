@@ -50,10 +50,10 @@ function uploadLimits() {
       message: 'Discord 上传上限受服务器加成影响，v2 暂未实现。',
     },
     huggingface: {
-      maxBytes: CHUNK_UPLOAD_LIMIT,
+      maxBytes: 5 * 1024 * 1024 * 1024,
       directThreshold: DIRECT_UPLOAD_THRESHOLD,
       supportsChunkUpload: true,
-      message: 'HuggingFace LFS 直传，单文件上限 100MB。',
+      message: 'HuggingFace LFS 直传，单文件上限 5GB。',
     },
     webdav: {
       maxBytes: CHUNK_UPLOAD_LIMIT,

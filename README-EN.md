@@ -31,7 +31,7 @@ The `v2/m1-scaffold` branch contains the v2 implementation; production still run
 - Upload and preview images, video, audio and documents (PDF / docx / txt included).
 - Direct file links, Range requests, HEAD, `/s/:slug` short links.
 - Telegram signed links (`tgs_...`) and webhook auto-replies.
-- Chunked upload (5MB chunks, 100MB per-file limit).
+- HuggingFace LFS direct upload (up to 5GB); other backends use 5MB chunks.
 - Browser-side image compression and format conversion.
 - Guest uploads with size and daily-count limits.
 - API tokens with scopes, policies, idempotency and rate limits.
@@ -108,7 +108,7 @@ Browser uploads are limited to 20MB by the Cloudflare request body limit. Use We
 
 `HF_TOKEN` and `HF_REPO` (dataset repository id).
 
-Files larger than 20MB use HuggingFace LFS direct upload: the Worker only handles preupload, LFS batch and commit, while the browser PUTs presigned part URLs directly. If browser CORS/ETag is unavailable, the Worker automatically proxies the parts. The per-file limit is 100MB and the whole file is never buffered in Worker memory.
+Files larger than 20MB use HuggingFace LFS direct upload: the Worker only handles preupload, LFS batch and commit, while the browser PUTs presigned part URLs directly. If browser CORS/ETag is unavailable, the Worker automatically proxies the parts. The per-file limit is 5GB and the whole file is never buffered in Worker memory.
 
 ### GitHub
 
@@ -138,9 +138,9 @@ npm run inventory  # read-only KV key inventory
 ## Limits
 
 - Workers free plan: 10ms CPU per request, 128MB memory, 50 subrequests.
-- Request body limit: 100MB. Chunked uploads use 5MB parts and are merged in memory; keep files below ~90MB.
+- Request body limit: 100MB. WebDAV/GitHub chunks are merged in memory at complete; keep files below ~90MB. HuggingFace uses LFS direct upload and supports up to 5GB.
 - Telegram cloud Bot API: 20MB download limit via `getFile` (uploads up to 50MB, but larger files cannot be fetched back). Use a self-hosted Bot API or WebDAV for larger files.
-- HuggingFace browser LFS direct upload: 100MB. GitHub contents: keep below 20MB.
+- HuggingFace browser LFS direct upload: 5GB (>256MB uses a Web Worker to hash the file incrementally). GitHub contents: keep below 20MB.
 - KV free tier: 100k reads/day, 1k writes/day. Chunked uploads consume several writes.
 - Signed links bypass KV, so they ignore block lists and deletion state. Use normal `/file/:id` links when revocation matters.
 

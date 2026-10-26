@@ -4073,7 +4073,7 @@
                 supportsChunkUpload: true,
               },
               huggingface: {
-                maxBytes: this.uploadConfig.maxSize,
+                maxBytes: 5 * 1024 * 1024 * 1024,
                 directThreshold: this.uploadConfig.smallFileThreshold,
                 supportsChunkUpload: true,
               },
@@ -4717,20 +4717,84 @@
             this.handleUploadSuccess(item, src);
           },
 
-          async computeHfFingerprint(file) {
+          hashFileWithWorker(file, onProgress) {
+            return new Promise((resolve, reject) => {
+              let worker;
+              try {
+                worker = new Worker("/vendor/sha256-worker.js");
+              } catch (error) {
+                reject(error);
+                return;
+              }
+
+              let offset = 0;
+              let settled = false;
+              const finish = (callback, value) => {
+                if (settled) return;
+                settled = true;
+                worker.terminate();
+                callback(value);
+              };
+              const sendNext = async () => {
+                try {
+                  if (offset >= file.size) {
+                    worker.postMessage({ type: "finish" });
+                    return;
+                  }
+                  const end = Math.min(offset + 8 * 1024 * 1024, file.size);
+                  const buffer = await file.slice(offset, end).arrayBuffer();
+                  offset = end;
+                  worker.postMessage({ type: "chunk", buffer }, [buffer]);
+                } catch (error) {
+                  finish(reject, error);
+                }
+              };
+
+              worker.onerror = (event) => {
+                finish(reject, new Error(event.message || "SHA-256 Worker 失败"));
+              };
+              worker.onmessage = (event) => {
+                const data = event.data || {};
+                if (data.type === "progress") {
+                  if (onProgress) {
+                    onProgress(Math.min(1, data.hashed / file.size));
+                  }
+                  sendNext();
+                } else if (data.type === "done") {
+                  finish(resolve, data.hash);
+                }
+              };
+              sendNext();
+            });
+          },
+
+          async computeHfFingerprint(file, onProgress) {
             const sampleBuffer = await file.slice(0, 512).arrayBuffer();
             const sample = btoa(
               Array.from(new Uint8Array(sampleBuffer), (byte) =>
                 String.fromCharCode(byte),
               ).join(""),
             );
-            const hashBuffer = await crypto.subtle.digest(
-              "SHA-256",
-              await file.arrayBuffer(),
-            );
-            const fileHash = Array.from(new Uint8Array(hashBuffer), (byte) =>
-              byte.toString(16).padStart(2, "0"),
-            ).join("");
+
+            let fileHash;
+            if (file.size > 256 * 1024 * 1024) {
+              if (typeof Worker === "undefined") {
+                throw new Error(
+                  "当前浏览器不支持 Web Worker，无法计算大文件的 SHA-256",
+                );
+              }
+              fileHash = await this.hashFileWithWorker(file, onProgress);
+            } else {
+              const hashBuffer = await crypto.subtle.digest(
+                "SHA-256",
+                await file.arrayBuffer(),
+              );
+              fileHash = Array.from(new Uint8Array(hashBuffer), (byte) =>
+                byte.toString(16).padStart(2, "0"),
+              ).join("");
+              if (onProgress) onProgress(1);
+            }
+
             return { fileHash, sample };
           },
 
@@ -4744,8 +4808,13 @@
             let sample = "";
 
             if (storageMode === "huggingface") {
-              item.progress = 2;
-              const fingerprint = await this.computeHfFingerprint(file);
+              item.progress = 1;
+              const fingerprint = await this.computeHfFingerprint(
+                file,
+                (progress) => {
+                  item.progress = 1 + Math.round(progress * 4);
+                },
+              );
               fileHash = fingerprint.fileHash;
               sample = fingerprint.sample;
             }
@@ -4842,7 +4911,7 @@
                   }
 
                   etags.push({ partNumber: part.partNumber, etag });
-                  item.progress = Math.round(((i + 1) / parts.length) * 90);
+                  item.progress = 5 + Math.round(((i + 1) / parts.length) * 90);
                 }
               }
 
