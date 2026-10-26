@@ -143,7 +143,7 @@ Bot 需要加入目标频道/群并有发言权限。`getWebhookInfo` 可用于�
 | `TELEGRAM_METADATA_MODE` | `off` 跳过 Telegram 元数据写入 |
 | `TG_UPLOAD_NOTIFY` | 网页上传成功后发送通知消息 |
 
-网页上传单文件上限 20MB（Cloudflare 请求体限制）；更大的文件请走 WebDAV 或直接在 Telegram 客户端发送后由 Webhook 回链。
+网页上传单文件上限 20MB（云端 Bot API 的 getFile 下载限制）；更大的文件请走 HuggingFace 或 WebDAV，或直接在 Telegram 客户端发送后由 Webhook 回链。
 
 ### HuggingFace
 
@@ -207,7 +207,7 @@ npm run inventory    # 只读盘点 KV 键分布
 ## 使用限制
 
 - Workers 免费版：10ms CPU / 请求、128MB 内存、50 个子请求。
-- 请求体上限 100MB；WebDAV/GitHub 分片在 complete 阶段仍会于 Worker 内存合并，建议单文件不超过 90MB；HuggingFace 已改为 LFS 直传，可到 5GB。
+- 请求体上限 100MB；WebDAV/GitHub 分片在 complete 阶段仍会于 Worker 内存合并，流式改造前暂限 50MB；HuggingFace 已改为 LFS 直传，可到 5GB。
 - Telegram 云端 Bot API 的 `getFile` 下载上限为 20MB（上传上限 50MB，但超过 20MB 的文件无法取回）；需要更大文件请使用自部署 Bot API 或 WebDAV。
 - HuggingFace 浏览器 LFS 直传上限 5GB（>256MB 使用 Web Worker 流式计算 SHA-256）；GitHub contents 模式建议不超过 20MB。
 - KV 免费额度：读 10 万次/天、写 1000 次/天。分片上传会消耗多次写入，`/api/status` 会返回当前限制。

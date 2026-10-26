@@ -14,7 +14,7 @@ fileInfoRoutes.get('/api/file-info/:id', async (c) => {
     return apiError('KV_BINDING_MISSING', 'KV binding img_url is not configured.', 500);
   }
 
-  const resolved = await getRecordWithKey(env.img_url, id);
+  const resolved = await getRecordWithKey(env.img_url, id, { maxPrefixes: 4 });
   const metadata = resolved.record?.metadata;
   if (!metadata) {
     return json({ error: 'File not found' }, 404);

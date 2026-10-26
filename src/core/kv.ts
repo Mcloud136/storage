@@ -11,8 +11,12 @@ export interface ResolvedRecord {
  * Resolve a public file id to its KV record, preserving the legacy candidate
  * set: bare key first, then every known storage prefix.
  */
-export async function getRecordWithKey(kv: KVNamespace, id: string): Promise<ResolvedRecord> {
-  const candidates = candidateKeys(id);
+export async function getRecordWithKey(
+  kv: KVNamespace,
+  id: string,
+  options: { maxPrefixes?: number } = {}
+): Promise<ResolvedRecord> {
+  const candidates = candidateKeys(id, options.maxPrefixes);
 
   for (let index = 0; index < candidates.length; index += 1) {
     const kvKey = candidates[index];

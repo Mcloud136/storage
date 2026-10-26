@@ -91,7 +91,7 @@ fileRoutes.on(['GET', 'HEAD', 'OPTIONS'], '/file/:id', async (c) => {
       return fileError('KV storage not available', 500);
     }
 
-    const resolved = await getRecordWithKey(env.img_url, id);
+    const resolved = await getRecordWithKey(env.img_url, id, { maxPrefixes: 4 });
     if (!resolved.record?.metadata) {
       return fileError('File not found', 404);
     }

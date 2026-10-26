@@ -44,29 +44,23 @@ export function normalizeFolderPath(value: string | undefined): string {
 }
 
 export async function listAllFileRecords(kv: KVNamespace): Promise<StoredFile[]> {
-  const keys: string[] = [];
+  const records: StoredFile[] = [];
   let cursor: string | undefined;
   do {
-    const page = await kv.list({ limit: 1000, cursor });
-    keys.push(...page.keys.map((key) => key.name));
+    const page = await kv.list<FileMetadata>({ limit: 1000, cursor });
+    for (const key of page.keys) {
+      if (isSystemKey(key.name)) continue;
+      if (!key.metadata) continue;
+      records.push({
+        kvKey: key.name,
+        metadata: key.metadata,
+        storageType: inferStorageType(key.name, key.metadata),
+      });
+    }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
 
-  const records = await Promise.all(
-    keys
-      .filter((key) => !isSystemKey(key))
-      .map(async (key) => {
-        const record = await kv.getWithMetadata<FileMetadata>(key);
-        if (!record?.metadata) return null;
-        return {
-          kvKey: key,
-          metadata: record.metadata,
-          storageType: inferStorageType(key, record.metadata),
-        };
-      })
-  );
-
-  return records.filter((record): record is StoredFile => Boolean(record));
+  return records;
 }
 
 export async function listFolderMarkers(kv: KVNamespace): Promise<string[]> {

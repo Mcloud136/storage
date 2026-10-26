@@ -90,11 +90,11 @@ export function hasKnownPrefix(id: string): boolean {
   return KNOWN_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
-export function candidateKeys(id: string): string[] {
+export function candidateKeys(id: string, maxPrefixes = KNOWN_PREFIXES.length): string[] {
   if (hasKnownPrefix(id)) {
     return [id];
   }
-  return [id, ...KNOWN_PREFIXES.map((prefix) => `${prefix}${id}`)];
+  return [id, ...KNOWN_PREFIXES.slice(0, maxPrefixes).map((prefix) => `${prefix}${id}`)];
 }
 
 export function inferStorageType(id: string, metadata: FileMetadata = {}): string {

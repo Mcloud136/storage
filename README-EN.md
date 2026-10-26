@@ -138,7 +138,7 @@ npm run inventory  # read-only KV key inventory
 ## Limits
 
 - Workers free plan: 10ms CPU per request, 128MB memory, 50 subrequests.
-- Request body limit: 100MB. WebDAV/GitHub chunks are merged in memory at complete; keep files below ~90MB. HuggingFace uses LFS direct upload and supports up to 5GB.
+- Request body limit: 100MB. WebDAV/GitHub chunks are merged in memory at complete and are limited to 50MB until streaming is implemented. HuggingFace uses LFS direct upload and supports up to 5GB.
 - Telegram cloud Bot API: 20MB download limit via `getFile` (uploads up to 50MB, but larger files cannot be fetched back). Use a self-hosted Bot API or WebDAV for larger files.
 - HuggingFace browser LFS direct upload: 5GB (>256MB uses a Web Worker to hash the file incrementally). GitHub contents: keep below 20MB.
 - KV free tier: 100k reads/day, 1k writes/day. Chunked uploads consume several writes.

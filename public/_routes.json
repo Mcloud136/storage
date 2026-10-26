@@ -8,6 +8,10 @@
     "/favicon.svg",
     "/logo.png",
     "/bg.svg",
+    "/music.svg",
+    "/theme.css",
+    "/theme.js",
+    "/mobile-refactor.css",
     "/admin-imgtc.css"
   ]
 }

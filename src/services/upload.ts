@@ -55,9 +55,9 @@ export interface UploadResult {
 
 const LIMITS: Record<string, number> = {
   telegram: 20 * 1024 * 1024,
-  webdav: 100 * 1024 * 1024,
+  webdav: 50 * 1024 * 1024,
   huggingface: 35 * 1024 * 1024,
-  github: 100 * 1024 * 1024,
+  github: 50 * 1024 * 1024,
 };
 
 export function normalizeFolderPath(value: string | undefined): string {

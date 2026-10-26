@@ -56,14 +56,16 @@ function uploadLimits() {
       message: 'HuggingFace LFS 直传，单文件上限 5GB。',
     },
     webdav: {
-      maxBytes: CHUNK_UPLOAD_LIMIT,
+      maxBytes: 50 * MB,
       directThreshold: DIRECT_UPLOAD_THRESHOLD,
       supportsChunkUpload: true,
+      message: '流式上传改造前暂限 50MB。',
     },
     github: {
-      maxBytes: CHUNK_UPLOAD_LIMIT,
+      maxBytes: 50 * MB,
       directThreshold: DIRECT_UPLOAD_THRESHOLD,
       supportsChunkUpload: true,
+      message: '流式上传改造前暂限 50MB。',
     },
   };
 }
@@ -109,14 +111,14 @@ statusRoutes.get('/api/status', async (c) => {
 
   if (env.img_url) {
     try {
-      const page = await env.img_url.list({ limit: 1 });
+      const probe = await env.img_url.get('ui_config', { cacheTtl: 60 });
       status.kv = {
         connected: true,
         enabled: true,
         configured: true,
         layer: 'direct',
         message: 'Connected',
-        hasData: Array.isArray(page.keys) && page.keys.length > 0,
+        hasData: probe !== null,
       };
     } catch (error) {
       status.kv = {

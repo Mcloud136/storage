@@ -14,7 +14,7 @@ import {
 import { normalizeFolderPath, uploadSource, UploadError, type WaitUntilContext } from '../services/upload';
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const TELEGRAM_WEB_UPLOAD_LIMIT = 20 * 1024 * 1024;
 const HF_DIRECT_THRESHOLD = 20 * 1024 * 1024;
 const HF_DIRECT_MAX = 5 * 1024 * 1024 * 1024;
