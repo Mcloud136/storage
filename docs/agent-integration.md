@@ -123,7 +123,7 @@ curl -X POST "https://your-kvault-domain/api/v1/import" \
 
 返回 `data.file`（含 `sha256`）、`data.links.download / share`、`data.source.url`、`data.deduplicated`。
 
-SSRF 防护：仅允许 http/https；端口白名单 80 / 443 / 8080 / 8443；内网、环回、链路本地、CGNAT、云厂商 metadata 主机与字面 IP 一律拒绝（Docker 侧对每个 DNS 解析结果复检）；每一跳重定向都重新校验。
+SSRF 防护：仅允许 http/https；端口白名单 80 / 443 / 8080 / 8443；内网、环回、链路本地、CGNAT、云厂商 metadata 主机与字面 IP 一律拒绝；每一跳重定向都重新校验。
 
 ### 3.5 kvault_list_files
 

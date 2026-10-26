@@ -11,11 +11,11 @@
   <script src="/theme.js?v=20260305"></script>
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css"
+      href="/vendor/element-plus/index.css"
     />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"
+      href="/vendor/fontawesome/css/all.min.css"
     />
 <style>
       :root {
@@ -2465,39 +2465,6 @@
               <button
                 class="storage-btn"
                 v-if="!isGuest"
-                :class="{ active: storageMode === 'r2', disabled: !r2Available }"
-                @click="setStorageMode('r2')"
-                :disabled="!r2Available"
-                :title="!r2Available ? '未配置 - 请在环境变量中配置 R2 存储桶' : 'Cloudflare R2 存储'"
-              >
-                <i class="fas fa-cloud"></i>
-                <span>R2 存储</span>
-              </button>
-              <button
-                class="storage-btn"
-                v-if="!isGuest"
-                :class="{ active: storageMode === 's3', disabled: !s3Available }"
-                @click="setStorageMode('s3')"
-                :disabled="!s3Available"
-                :title="!s3Available ? '未配置 - 请在环境变量中配置 S3 相关参数' : 'S3 兼容存储'"
-              >
-                <i class="fas fa-database"></i>
-                <span>S3 API</span>
-              </button>
-              <button
-                class="storage-btn"
-                v-if="!isGuest"
-                :class="{ active: storageMode === 'discord', disabled: !discordAvailable }"
-                @click="setStorageMode('discord')"
-                :disabled="!discordAvailable"
-                :title="!discordAvailable ? '未配置 - 请在环境变量中配置 Discord 相关参数' : 'Discord 存储'"
-              >
-                <i class="fab fa-discord"></i>
-                <span>Discord</span>
-              </button>
-              <button
-                class="storage-btn"
-                v-if="!isGuest"
                 :class="{ active: storageMode === 'huggingface', disabled: !huggingfaceAvailable }"
                 @click="setStorageMode('huggingface')"
                 :disabled="!huggingfaceAvailable"
@@ -2780,13 +2747,13 @@
               <div style="display: flex; gap: 8px">
                 <el-button
                   v-if="failedCount > 0"
-                  size="mini"
+                  size="small"
                   type="warning"
                   @click="retryAllFailed"
                 >
                   <i class="fas fa-redo"></i> 重试全部失败 ({{ failedCount }})
                 </el-button>
-                <el-button size="mini" type="info" @click="clearUploadQueue">
+                <el-button size="small" type="info" @click="clearUploadQueue">
                   <i class="fas fa-broom"></i> 清空队列
                 </el-button>
               </div>
@@ -2869,21 +2836,21 @@
               </span>
             </div>
             <div class="result-actions" v-if="uploadedFiles.length > 0">
-              <el-button size="mini" type="primary" @click="selectAll">
+              <el-button size="small" type="primary" @click="selectAll">
                 {{ isAllSelected ? '取消全选' : '全选' }}
               </el-button>
               <el-button
-                size="mini"
+                size="small"
                 type="success"
                 @click="copySelectedLinks"
                 :disabled="selectedCount === 0"
               >
                 复制选中 ({{ selectedCount }})
               </el-button>
-              <el-button size="mini" type="warning" @click="copyAllLinks">
+              <el-button size="small" type="warning" @click="copyAllLinks">
                 复制全部
               </el-button>
-              <el-button size="mini" type="danger" @click="clearResults">
+              <el-button size="small" type="danger" @click="clearResults">
                 清空
               </el-button>
             </div>
@@ -3017,18 +2984,18 @@
             >
           </div>
           <div class="result-actions">
-            <el-button size="mini" type="primary" @click="selectAllHistory">
+            <el-button size="small" type="primary" @click="selectAllHistory">
               {{ isAllHistorySelected ? '取消全选' : '全选' }}
             </el-button>
             <el-button
-              size="mini"
+              size="small"
               type="success"
               @click="copySelectedHistoryLinks"
               :disabled="selectedHistoryCount === 0"
             >
               复制选中 ({{ selectedHistoryCount }})
             </el-button>
-            <el-button size="mini" type="danger" @click="clearHistory">
+            <el-button size="small" type="danger" @click="clearHistory">
               清空历史
             </el-button>
           </div>
@@ -3367,14 +3334,15 @@
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/index.js"></script>
+    <script src="/vendor/vue/vue.global.prod.js"></script>
+    <script src="/vendor/element-plus/index.full.min.js"></script>
+  <script src="/vendor/element-plus/locale/zh-cn.min.js"></script>
     <script>
       const LOCAL_PREVIEW_PAGE = "/preview.html";
 
-      new Vue({
-        el: "#app",
-        data: {
+      const app = Vue.createApp({
+        data() {
+          return {
           baseURL: document.location.origin,
           isDragging: false,
           showUrlInput: false,
@@ -3431,6 +3399,7 @@
             maxConcurrent: 3,
           },
           uploadLimits: {},
+          };
         },
         computed: {
           selectedCount() {
@@ -5708,7 +5677,7 @@
             if (this.authChecking) return;
 
             // 访客只允许 telegram 和 r2
-            if (this.isGuest && !["telegram", "r2"].includes(mode)) {
+            if (this.isGuest && mode !== "telegram") {
               this.showToast("访客模式仅支持 Telegram 和 R2 存储", "error");
               return;
             }
@@ -5787,7 +5756,7 @@
           };
           document.addEventListener("keydown", this.globalKeydownHandler);
         },
-        beforeDestroy() {
+        beforeUnmount() {
           if (this.globalPasteHandler) {
             document.removeEventListener("paste", this.globalPasteHandler);
           }
@@ -5800,5 +5769,19 @@
         },
       });
     </script>
-  </body>
+  
+<script>
+  app.use(ElementPlus, window.ElementPlusLocaleZhCn ? { locale: window.ElementPlusLocaleZhCn } : undefined);
+  app.config.globalProperties.$message = ElementPlus.ElMessage;
+  app.config.globalProperties.$msgbox = ElementPlus.ElMessageBox;
+  app.config.globalProperties.$alert = ElementPlus.ElMessageBox.alert;
+  app.config.globalProperties.$confirm = ElementPlus.ElMessageBox.confirm;
+  app.config.globalProperties.$prompt = ElementPlus.ElMessageBox.prompt;
+  app.config.globalProperties.$notify = ElementPlus.ElNotification;
+  app.config.globalProperties.$loading = ElementPlus.ElLoading.service;
+  app.config.globalProperties.$set = (target, key, value) => { target[key] = value; };
+  app.config.globalProperties.$delete = (target, key) => { delete target[key]; };
+  app.mount('#app');
+</script>
+</body>
 </html>

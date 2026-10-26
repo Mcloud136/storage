@@ -9,8 +9,7 @@
   <link rel="shortcut icon" href="/favicon.ico">
   <link rel="stylesheet" href="/theme.css">
   <script src="/theme.js?v=20260305"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
   <style>
     :root {
       --primary: #8a4bff;
@@ -924,8 +923,8 @@
       <button class="page-btn" @click="currentPage--" :disabled="currentPage === 1">
         <i class="fas fa-angle-left"></i>
       </button>
-      <template v-for="page in displayPages">
-        <button class="page-btn" :class="{ active: page === currentPage }" @click="currentPage = page" :key="page">
+      <template v-for="page in displayPages" :key="page">
+        <button class="page-btn" :class="{ active: page === currentPage }" @click="currentPage = page">
           {{ page }}
         </button>
       </template>
@@ -987,14 +986,13 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/index.js"></script>
+  <script src="/vendor/vue/vue.global.prod.js"></script>
   <script>
     const LOCAL_PREVIEW_PAGE = '/preview.html';
 
-    new Vue({
-      el: '#app',
-      data: {
+    const app = Vue.createApp({
+      data() {
+        return {
         baseURL: document.location.origin,
         images: [],
         loading: true,
@@ -1007,6 +1005,7 @@
         previewData: null,  // 新的预览数据对象
         toasts: [],
         searchTimer: null
+        };
       },
       computed: {
         filteredImages() {
@@ -1377,5 +1376,11 @@
       }
     });
   </script>
+
+<script>
+  app.config.globalProperties.$set = (target, key, value) => { target[key] = value; };
+  app.config.globalProperties.$delete = (target, key) => { delete target[key]; };
+  app.mount('#app');
+</script>
 </body>
 </html>

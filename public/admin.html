@@ -11,8 +11,8 @@
   <script src="/theme.js?v=20260305"></script>
   <!-- Import CSS -->
   <link rel="stylesheet" href="./admin-imgtc.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="/vendor/element-plus/index.css">
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
   <style>
     /* 底部消息提示样式 */
     .el-message {
@@ -1055,64 +1055,61 @@
         <div class="header-content">
           <span class="home-btn" @click="goHome"><i class="fas fa-home"></i></span>
           <span class="title" @click="refreshDashboard">管理后台</span>
-          <div class="search-card"><el-input v-model="search" size="mini" placeholder="输入关键字搜索"></el-input></div>
+          <div class="search-card"><el-input v-model="search" size="small" placeholder="输入关键字搜索"></el-input></div>
           <span class="stats" role="status" aria-live="polite">
             <i class="fas fa-chart-line stats-icon"></i>
-            <span class="stats-text">总记录: {{ totalCount || Number }}</span>
-            <small class="stats-loaded">已加载 {{ Number }}</small>
+            <span class="stats-text">总记录: {{ totalCount || loadedCount }}</span>
+            <small class="stats-loaded">已加载 {{ loadedCount }}</small>
           </span>
           <div class="actions">
             <el-dropdown @command="switchFileType" :hide-on-click="false">
               <span class="el-dropdown-link"><i :class="fileTypeIcon"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="all" :class="{ 'el-dropdown-menu__item--selected': fileType === 'all' }"><i class="fas fa-th-large"></i> 全部</el-dropdown-item>
                 <el-dropdown-item command="image" :class="{ 'el-dropdown-menu__item--selected': fileType === 'image' }"><i :class="fileConfig.image.icon"></i> 图片</el-dropdown-item>
                 <el-dropdown-item command="video" :class="{ 'el-dropdown-menu__item--selected': fileType === 'video' }"><i :class="fileConfig.video.icon"></i> 视频</el-dropdown-item>
                 <el-dropdown-item command="audio" :class="{ 'el-dropdown-menu__item--selected': fileType === 'audio' }"><i :class="fileConfig.audio.icon"></i> 音频</el-dropdown-item>
                 <el-dropdown-item command="document" :class="{ 'el-dropdown-menu__item--selected': fileType === 'document' }"><i :class="fileConfig.document.icon"></i> 文件</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-dropdown @command="switchStorageFilter" :hide-on-click="false">
               <span class="el-dropdown-link"><i :class="storageFilterIcon"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="all" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 'all' }"><i class="fas fa-database"></i> 全部存储</el-dropdown-item>
                 <el-dropdown-item command="telegram" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 'telegram' }"><i class="fab fa-telegram"></i> Telegram</el-dropdown-item>
-                <el-dropdown-item command="r2" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 'r2' }"><i class="fas fa-cloud"></i> R2 存储</el-dropdown-item>
-                <el-dropdown-item command="s3" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 's3' }"><i class="fas fa-database"></i> S3 存储</el-dropdown-item>
-                <el-dropdown-item command="discord" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 'discord' }"><i class="fab fa-discord"></i> Discord</el-dropdown-item>
                 <el-dropdown-item command="huggingface" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 'huggingface' }"><i class="fas fa-robot"></i> HuggingFace</el-dropdown-item>
                 <el-dropdown-item command="webdav" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 'webdav' }"><i class="fas fa-hard-drive"></i> WebDAV</el-dropdown-item>
                 <el-dropdown-item command="github" :class="{ 'el-dropdown-menu__item--selected': storageFilter === 'github' }"><i class="fab fa-github"></i> GitHub</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-dropdown @command="sort" :hide-on-click="false">
               <span class="el-dropdown-link"><i :class="sortIcon"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="dateDesc" :class="{ 'el-dropdown-menu__item--selected': sortOption === 'dateDesc' }"><i class="fas fa-sort-amount-down"></i> 按时间倒序</el-dropdown-item>
                 <el-dropdown-item command="nameAsc" :class="{ 'el-dropdown-menu__item--selected': sortOption === 'nameAsc' }"><i class="fas fa-sort-alpha-up"></i> 按名称升序</el-dropdown-item>
                 <el-dropdown-item command="sizeDesc" :class="{ 'el-dropdown-menu__item--selected': sortOption === 'sizeDesc' }"><i class="fas fa-sort-amount-down"></i> 按大小倒序</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-dropdown @command="filter" :hide-on-click="false">
               <span class="el-dropdown-link"><i :class="filterIcon"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="all" :class="{ 'el-dropdown-menu__item--selected': filterOption === 'all' }"><i class="fas fa-filter"></i> 全部</el-dropdown-item>
                 <el-dropdown-item command="favorites" :class="{ 'el-dropdown-menu__item--selected': filterOption === 'favorites' }"><i class="fas fa-bookmark"></i> 收藏</el-dropdown-item>
                 <el-dropdown-item command="blocked" :class="{ 'el-dropdown-menu__item--selected': filterOption === 'blocked' }"><i class="fas fa-lock"></i> 黑名单</el-dropdown-item>
                 <el-dropdown-item command="unblocked" :class="{ 'el-dropdown-menu__item--selected': filterOption === 'unblocked' }"><i class="fas fa-unlock"></i> 白名单</el-dropdown-item>
                 <el-dropdown-item command="adult" :class="{ 'el-dropdown-menu__item--selected': filterOption === 'adult' }"><i class="fas fa-user-secret"></i> NSFW</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-dropdown @command="switchViewMode" :hide-on-click="false">
               <span class="el-dropdown-link"><i :class="viewModeIcon"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="grid" :class="{ 'el-dropdown-menu__item--selected': viewMode === 'grid' }"><i class="fas fa-th-large"></i> 平铺视图</el-dropdown-item>
                 <el-dropdown-item command="list" :class="{ 'el-dropdown-menu__item--selected': viewMode === 'list' }"><i class="fas fa-list"></i> 详细视图</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-dropdown @command="handleBatchOperation" :hide-on-click="false">
               <span class="el-dropdown-link"><i class="fas fa-tasks"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="selectAll"><i class="fas fa-check-double"></i> {{ isAllSelected ? '取消全选' : '全选当前页' }}</el-dropdown-item>
                 <el-dropdown-item command="selectAllLoaded"><i class="fas fa-check-square"></i> 全选已加载 ({{ tableData.length }})</el-dropdown-item>
                 <el-dropdown-item divided command="copy" :class="{ disabled: selectedFiles.length === 0 }"><i class="fas fa-link"></i> 批量复制</el-dropdown-item>
@@ -1123,21 +1120,21 @@
                 <el-dropdown-item command="moveFolder" :class="{ disabled: selectedFiles.length === 0 }"><i class="fas fa-folder-tree"></i> 移动到目录</el-dropdown-item>
                 <el-dropdown-item command="block" :class="{ disabled: selectedFiles.length === 0 }"><i class="fas fa-lock"></i> 加入黑名单</el-dropdown-item>
                 <el-dropdown-item command="unblock" :class="{ disabled: selectedFiles.length === 0 }"><i class="fas fa-unlock"></i> 加入白名单</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-dropdown @command="handleWebsite">
               <span class="el-dropdown-link"><i class="fas fa-external-link-alt"></i></span>
-              <el-dropdown-menu slot="dropdown">
-                <template v-for="site in quickWebsites">
+              <template #dropdown><el-dropdown-menu>
+                <template v-for="site in quickWebsites" :key="site.url">
                   <el-dropdown-item :command="site.url">
                     <i :class="site.icon"></i> {{ site.name }}
                   </el-dropdown-item>
                 </template>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-dropdown @command="handleToolkit" :hide-on-click="false">
               <span class="el-dropdown-link"><i class="fas fa-toolbox"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="selectAllInPage"><i class="fas fa-check-square"></i> 全选当前页</el-dropdown-item>
                 <el-dropdown-item command="checkBrokenFiles"><i class="fas fa-wrench"></i> 检测失效文件</el-dropdown-item>
                 <el-dropdown-item command="editWebsites"><i class="fas fa-edit"></i> 编辑快捷方式</el-dropdown-item>
@@ -1145,7 +1142,7 @@
                 <el-dropdown-item command="exportLinks"><i class="fas fa-file-export"></i> 导出全部链接</el-dropdown-item>
                 <el-dropdown-item command="manageApiTokens"><i class="fas fa-key"></i> API Token 管理</el-dropdown-item>
                 <el-dropdown-item command="checkStatus" divided><i class="fas fa-heartbeat"></i> 检查连接状态</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <div class="status-panel" @click="checkConnectionStatus">
               <div class="status-item">
@@ -1155,18 +1152,6 @@
               <div class="status-item">
                 <i class="fas fa-circle" :style="{ color: systemStatus.kv.connected ? '#67c23a' : '#f56c6c' }"></i>
                 <span>KV</span>
-              </div>
-              <div class="status-item">
-                <i class="fas fa-circle" :style="{ color: systemStatus.r2.connected ? '#67c23a' : (isUnconfiguredStatus(systemStatus.r2) ? '#909399' : '#f56c6c') }"></i>
-                <span>R2</span>
-              </div>
-              <div class="status-item">
-                <i class="fas fa-circle" :style="{ color: systemStatus.s3.connected ? '#67c23a' : (isUnconfiguredStatus(systemStatus.s3) ? '#909399' : '#f56c6c') }"></i>
-                <span>S3</span>
-              </div>
-              <div class="status-item">
-                <i class="fas fa-circle" :style="{ color: systemStatus.discord.connected ? '#67c23a' : (isUnconfiguredStatus(systemStatus.discord) ? '#909399' : '#f56c6c') }"></i>
-                <span>DC</span>
               </div>
               <div class="status-item">
                 <i class="fas fa-circle" :style="{ color: systemStatus.huggingface.connected ? '#67c23a' : (isUnconfiguredStatus(systemStatus.huggingface) ? '#909399' : '#f56c6c') }"></i>
@@ -1179,13 +1164,13 @@
             </div>
             <el-dropdown @command="handleLoadSettings" :hide-on-click="false">
               <span class="el-dropdown-link"><i class="fas fa-cog"></i></span>
-              <el-dropdown-menu slot="dropdown">
+              <template #dropdown><el-dropdown-menu>
                 <el-dropdown-item command="normal" :class="{ 'el-dropdown-menu__item--selected': loadMode === 'normal' }"><i class="fas fa-eye"></i> 正常模式</el-dropdown-item>
                 <el-dropdown-item command="dataSaver" :class="{ 'el-dropdown-menu__item--selected': loadMode === 'dataSaver' }"><i class="fas fa-bolt"></i> 省流模式</el-dropdown-item>
                 <el-dropdown-item command="noImage" :class="{ 'el-dropdown-menu__item--selected': loadMode === 'noImage' }"><i class="fas fa-eye-slash"></i> 无图模式</el-dropdown-item>
                 <el-dropdown-item command="safeMode" divided :class="{ 'el-dropdown-menu__item--selected': safeMode }"><i class="fas fa-shield-alt"></i> {{ safeMode ? '✓' : '' }} 安全模式(NSFW)</el-dropdown-item>
                 <el-dropdown-item command="uiDesign" divided><i class="fas fa-sliders-h"></i> 前端 UI 设计</el-dropdown-item>
-              </el-dropdown-menu>
+              </el-dropdown-menu></template>
             </el-dropdown>
             <el-tooltip content="前端 UI 设计" placement="bottom"><i class="fas fa-sliders-h" @click="showUiDesignSettingsPanel"></i></el-tooltip>
             <i class="fas fa-sign-out-alt" @click="handleLogout"></i>
@@ -1202,10 +1187,10 @@
             <div class="folder-head">
               <span class="folder-head-title"><i class="fas fa-folder-tree"></i><span>目录管理</span></span>
               <span class="folder-head-actions">
-                <el-button size="mini" circle icon="el-icon-refresh" title="刷新目录与文件" :disabled="folderMutating" :loading="folderLoading" @click="refreshFolderResources"></el-button>
-                <el-button size="mini" circle icon="el-icon-plus" title="新建目录" :disabled="folderMutating" :loading="folderMutatingAction === 'create'" @click="createFolder"></el-button>
-                <el-button size="mini" circle icon="el-icon-edit" title="重命名目录" :disabled="folderMutating || !folderPath" :loading="folderMutatingAction === 'rename'" @click="renameCurrentFolder"></el-button>
-                <el-button size="mini" circle icon="el-icon-delete" title="删除目录" :disabled="folderMutating || !folderPath" :loading="folderMutatingAction === 'delete'" @click="deleteCurrentFolder"></el-button>
+                <el-button size="small" circle title="刷新目录与文件" :disabled="folderMutating" :loading="folderLoading" @click="refreshFolderResources"><i class="fas fa-sync-alt"></i></el-button>
+                <el-button size="small" circle title="新建目录" :disabled="folderMutating" :loading="folderMutatingAction === 'create'" @click="createFolder"><i class="fas fa-plus"></i></el-button>
+                <el-button size="small" circle title="重命名目录" :disabled="folderMutating || !folderPath" :loading="folderMutatingAction === 'rename'" @click="renameCurrentFolder"><i class="fas fa-pen"></i></el-button>
+                <el-button size="small" circle title="删除目录" :disabled="folderMutating || !folderPath" :loading="folderMutatingAction === 'delete'" @click="deleteCurrentFolder"><i class="fas fa-trash"></i></el-button>
               </span>
             </div>
             <div class="folder-current">当前位置：/{{ folderPath || '' }}</div>
@@ -1237,9 +1222,9 @@
             <div class="folder-breadcrumb">
               <i class="fas fa-location-arrow"></i>
               <span class="folder-crumb" @click="selectFolder('')">根目录</span>
-              <template v-for="item in folderBreadcrumbs">
-                <i :key="'sep-' + item.path" class="el-icon-arrow-right"></i>
-                <span :key="'crumb-' + item.path" class="folder-crumb" @click="selectFolder(item.path)">{{ item.name }}</span>
+              <template v-for="item in folderBreadcrumbs" :key="item.path">
+                <i class="fas fa-chevron-right"></i>
+                <span class="folder-crumb" @click="selectFolder(item.path)">{{ item.name }}</span>
               </template>
             </div>
             <template v-if="viewMode === 'grid'">
@@ -1278,17 +1263,17 @@
                 </div>
                 <div class="image-overlay">
                   <div class="overlay-buttons">
-                    <el-dropdown @command="(cmd) => handleQuickCopy(cmd, item.name)" trigger="click" size="mini">
-                      <el-button size="mini" type="primary" @click.stop>复制 <i class="el-icon-arrow-down"></i></el-button>
-                      <el-dropdown-menu slot="dropdown">
+                    <el-dropdown @command="(cmd) => handleQuickCopy(cmd, item.name)" trigger="click" size="small">
+                      <el-button size="small" type="primary" @click.stop>复制 <i class="fas fa-chevron-down"></i></el-button>
+                      <template #dropdown><el-dropdown-menu>
                         <el-dropdown-item command="url">直链 URL</el-dropdown-item>
                         <el-dropdown-item command="markdown">Markdown</el-dropdown-item>
                         <el-dropdown-item command="html">HTML</el-dropdown-item>
                         <el-dropdown-item command="bbcode">BBCode</el-dropdown-item>
-                      </el-dropdown-menu>
+                      </el-dropdown-menu></template>
                     </el-dropdown>
-                    <el-button size="mini" type="info" @click.stop="handleEditName(item)">编辑</el-button>
-                    <el-button size="mini" type="danger" @click.stop="handleDelete(index, item.name)">删除</el-button>
+                    <el-button size="small" type="info" @click.stop="handleEditName(item)">编辑</el-button>
+                    <el-button size="small" type="danger" @click.stop="handleDelete(index, item.name)">删除</el-button>
                   </div>
               </div>
               <div class="card-footer">
@@ -1467,7 +1452,7 @@
                 <div v-if="paginatedTableData.length === 0" class="empty-tip">
                   当前目录下没有符合条件的文件。
                   <div>
-                    <el-button size="mini" type="primary" @click="resetViewConditions">清空筛选并返回根目录</el-button>
+                    <el-button size="small" type="primary" @click="resetViewConditions">清空筛选并返回根目录</el-button>
                   </div>
                 </div>
               </div>
@@ -1476,12 +1461,12 @@
               <div class="list-view-card">
                 <el-table :data="paginatedTableData" border stripe row-key="name" style="width: 100%">
                   <el-table-column label="选择" width="76" align="center">
-                    <template slot-scope="scope">
+                    <template #default="scope">
                       <el-checkbox :value="scope.row.selected" @change="toggleSelectByName(scope.row.name)"></el-checkbox>
                     </template>
                   </el-table-column>
                   <el-table-column label="文件名" min-width="280" show-overflow-tooltip>
-                    <template slot-scope="scope">
+                    <template #default="scope">
                       <span class="row-drag-handle" draggable="true" @dragstart="handleFileDragStart(scope.row, $event)" @dragend="handleFileDragEnd">
                         <i class="fas fa-grip-lines"></i>
                       </span>
@@ -1491,35 +1476,35 @@
                     </template>
                   </el-table-column>
                   <el-table-column label="目录" width="180" show-overflow-tooltip>
-                    <template slot-scope="scope">
+                    <template #default="scope">
                       {{ scope.row.metadata.folderPath || '根目录' }}
                     </template>
                   </el-table-column>
                   <el-table-column label="类型" width="92" align="center">
-                    <template slot-scope="scope">
+                    <template #default="scope">
                       {{ getFileType(scope.row.name) }}
                     </template>
                   </el-table-column>
                   <el-table-column label="大小" width="116" align="right">
-                    <template slot-scope="scope">
+                    <template #default="scope">
                       {{ formatFileSize(scope.row.metadata.fileSize || 0) }}
                     </template>
                   </el-table-column>
                   <el-table-column label="存储" width="126" align="center">
-                    <template slot-scope="scope">
+                    <template #default="scope">
                       {{ getStorageLabel(scope.row.name) }}
                     </template>
                   </el-table-column>
                   <el-table-column label="操作" width="236" fixed="right">
-                    <template slot-scope="scope">
+                    <template #default="scope">
                       <div class="list-actions">
-                        <el-button type="text" size="mini" @click="toggleLike(0, scope.row.name)">
+                        <el-button text size="small" @click="toggleLike(0, scope.row.name)">
                           {{ scope.row.metadata.liked ? '取消收藏' : '收藏' }}
                         </el-button>
-                        <el-button type="text" size="mini" @click="handleCopy(0, scope.row.name)">复制</el-button>
-                        <el-button type="text" size="mini" @click="handleEditName(scope.row)">重命名</el-button>
-                        <el-button type="text" size="mini" @click="openPreview(scope.row)">预览</el-button>
-                        <el-button type="text" size="mini" style="color:#f56c6c" @click="handleDelete(0, scope.row.name)">删除</el-button>
+                        <el-button text size="small" @click="handleCopy(0, scope.row.name)">复制</el-button>
+                        <el-button text size="small" @click="handleEditName(scope.row)">重命名</el-button>
+                        <el-button text size="small" @click="openPreview(scope.row)">预览</el-button>
+                        <el-button text size="small" style="color:#f56c6c" @click="handleDelete(0, scope.row.name)">删除</el-button>
                       </div>
                     </template>
                   </el-table-column>
@@ -1527,7 +1512,7 @@
                 <div v-if="paginatedTableData.length === 0" class="empty-tip">
                   当前目录下没有符合条件的文件。
                   <div>
-                    <el-button size="mini" type="primary" @click="resetViewConditions">清空筛选并返回根目录</el-button>
+                    <el-button size="small" type="primary" @click="resetViewConditions">清空筛选并返回根目录</el-button>
                   </div>
                 </div>
               </div>
@@ -1536,14 +1521,14 @@
               <el-pagination
                 background layout="total, prev, pager, next"
                 :total="paginationTotal" :page-size="pageSize"
-                @current-change="handlePageChange" :current-page.sync="currentPage" />
+                @current-change="handlePageChange" v-model:current-page="currentPage"></el-pagination>
             </div>
             <div style="text-align:center;margin-top:16px;">
               <el-button v-if="nextCursor" :loading="isLoadingMore" :disabled="isLoadingMore" @click="loadMore">
-                {{ isLoadingMore ? '加载中...' : ('加载更多 (' + Number + '/' + (totalCount || Number) + ')') }}
+                {{ isLoadingMore ? '加载中...' : ('加载更多 (' + loadedCount + '/' + (totalCount || loadedCount) + ')') }}
               </el-button>
-              <div v-else-if="(totalCount || Number) > 0 && Number >= (totalCount || Number)" class="load-more-end">
-                全部加载完成，共 {{ totalCount || Number }} 条
+              <div v-else-if="(totalCount || loadedCount) > 0 && loadedCount >= (totalCount || loadedCount)" class="load-more-end">
+                全部加载完成，共 {{ totalCount || loadedCount }} 条
               </div>
             </div>
           </section>
@@ -1558,16 +1543,16 @@
     </el-container>
     <el-dialog
       title="API Token 管理"
-      :visible.sync="tokenDialogVisible"
+      v-model="tokenDialogVisible"
       width="860px"
       append-to-body
-      custom-class="token-manager-dialog">
+      class="token-manager-dialog">
       <div class="token-toolbar">
-        <el-button size="mini" type="primary" icon="el-icon-plus" @click="openCreateTokenDialog">新建 Token</el-button>
-        <el-button size="mini" icon="el-icon-refresh" :loading="tokenLoading" @click="loadApiTokens">刷新</el-button>
+        <el-button size="small" type="primary" @click="openCreateTokenDialog"><i class="fas fa-plus"></i> 新建 Token</el-button>
+        <el-button size="small" :loading="tokenLoading" @click="loadApiTokens"><i class="fas fa-sync-alt"></i> 刷新</el-button>
       </div>
       <div v-if="tokenLoading" class="token-loading">
-        <i class="el-icon-loading"></i> 正在加载 Token...
+        <i class="fas fa-spinner fa-spin"></i> 正在加载 Token...
       </div>
       <div v-else-if="apiTokens.length === 0" class="token-empty">
         <i class="fas fa-key"></i>
@@ -1578,15 +1563,15 @@
         :data="apiTokens"
         stripe
         border
-        size="mini"
+        size="small"
         row-key="id">
         <el-table-column prop="name" label="名称" min-width="170"></el-table-column>
         <el-table-column label="权限" min-width="190">
-          <template slot-scope="scope">
+          <template #default="scope">
             <el-tag
               v-for="scopeName in scope.row.scopes"
               :key="scope.row.id + '-' + scopeName"
-              size="mini"
+              size="small"
               :type="tokenScopeTagType(scopeName)"
               class="token-scope-tag">
               {{ scopeName }}
@@ -1594,24 +1579,24 @@
           </template>
         </el-table-column>
         <el-table-column label="创建时间" min-width="140">
-          <template slot-scope="scope">
+          <template #default="scope">
             <div>{{ formatDateTime(scope.row.createdAt) }}</div>
             <small class="token-time-hint">{{ formatRelativeTime(scope.row.createdAt) }}</small>
           </template>
         </el-table-column>
         <el-table-column label="最后使用" min-width="140">
-          <template slot-scope="scope">
+          <template #default="scope">
             <span v-if="scope.row.lastUsedAt">{{ formatRelativeTime(scope.row.lastUsedAt) }}</span>
             <span v-else class="token-time-hint">从未使用</span>
           </template>
         </el-table-column>
         <el-table-column label="Token 预览" min-width="122">
-          <template slot-scope="scope">
+          <template #default="scope">
             <code>{{ scope.row.tokenPreview }}</code>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="176" align="center">
-          <template slot-scope="scope">
+          <template #default="scope">
             <el-switch
               v-model="scope.row.enabled"
               :disabled="Boolean(tokenMutatingMap[scope.row.id])"
@@ -1625,16 +1610,16 @@
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140" align="center">
-          <template slot-scope="scope">
+          <template #default="scope">
             <el-button
-              type="text"
+              text
               style="color:#e6a23c"
               :disabled="Boolean(tokenMutatingMap[scope.row.id])"
               @click="rotateApiToken(scope.row)">
               轮换
             </el-button>
             <el-button
-              type="text"
+              text
               style="color:#f56c6c"
               :disabled="Boolean(tokenMutatingMap[scope.row.id])"
               @click="removeApiToken(scope.row)">
@@ -1645,35 +1630,35 @@
       </el-table>
       <div style="margin-top:14px;padding:10px 12px;background:#f5f7fa;border-radius:6px;border:1px solid #ebeef5;">
         <div style="font-size:13px;font-weight:600;color:#606266;margin-bottom:6px;"><i class="fas fa-terminal"></i> 脚本 / Agent 调用示例</div>
-        <pre style="margin:0;font-size:12px;line-height:1.7;color:#476582;background:#fafbfc;border-radius:4px;padding:10px;overflow-x:auto;"># curl 上传（storage 可选 telegram/r2/s3/discord/huggingface/webdav/github）
+        <pre style="margin:0;font-size:12px;line-height:1.7;color:#476582;background:#fafbfc;border-radius:4px;padding:10px;overflow-x:auto;"># curl 上传（storage 可选 telegram/huggingface/webdav/github）
 curl -H "Authorization: Bearer $KVAULT_API_TOKEN" \
-  -F "file=@./image.png" -F "storage=r2" \
+  -F "file=@./image.png" -F "storage=telegram" \
   {SITE_URL}/api/v1/upload
 
 # 从 URL 导入图片
 curl -X POST "{SITE_URL}/api/v1/import" \
   -H "Authorization: Bearer $KVAULT_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/cat.jpg","storage":"r2"}'</pre>
+  -d '{"url":"https://example.com/cat.jpg","storage":"telegram"}'</pre>
       </div>
     </el-dialog>
 
     <el-dialog
       title="创建 API Token"
-      :visible.sync="createTokenDialogVisible"
+      v-model="createTokenDialogVisible"
       width="560px"
       append-to-body
-      custom-class="token-create-dialog">
+      class="token-create-dialog">
       <el-form label-position="top" size="small">
         <el-form-item label="Token 名称">
           <el-input v-model="tokenForm.name" maxlength="64" placeholder="例如：ShareX 截图上传 / CI 备份脚本"></el-input>
         </el-form-item>
         <el-form-item label="权限">
           <el-checkbox-group v-model="tokenForm.scopes" class="token-scope-group">
-            <el-checkbox label="upload"><i class="fas fa-upload"></i> 上传文件</el-checkbox>
-            <el-checkbox label="read"><i class="fas fa-eye"></i> 读取/列表/下载</el-checkbox>
-            <el-checkbox label="delete"><i class="fas fa-trash-alt"></i> 删除文件/粘贴</el-checkbox>
-            <el-checkbox label="paste"><i class="fas fa-file-alt"></i> 创建文本粘贴</el-checkbox>
+            <el-checkbox value="upload"><i class="fas fa-upload"></i> 上传文件</el-checkbox>
+            <el-checkbox value="read"><i class="fas fa-eye"></i> 读取/列表/下载</el-checkbox>
+            <el-checkbox value="delete"><i class="fas fa-trash-alt"></i> 删除文件/粘贴</el-checkbox>
+            <el-checkbox value="paste"><i class="fas fa-file-alt"></i> 创建文本粘贴</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
         <el-form-item label="存储限制（可选，留空不限制）">
@@ -1706,18 +1691,18 @@ curl -X POST "{SITE_URL}/api/v1/import" \
           </el-date-picker>
         </el-form-item>
       </el-form>
-      <span slot="footer" class="dialog-footer">
+      <template #footer><span class="dialog-footer">
         <el-button size="small" @click="createTokenDialogVisible = false">取消</el-button>
         <el-button size="small" type="primary" :loading="tokenCreateLoading" @click="createApiToken">创建</el-button>
-      </span>
+      </span></template>
     </el-dialog>
 
     <el-dialog
       title="Token 已创建"
-      :visible.sync="createdTokenDialogVisible"
+      v-model="createdTokenDialogVisible"
       width="620px"
       append-to-body
-      custom-class="token-created-dialog">
+      class="token-created-dialog">
       <div class="token-once-warning">
         <i class="fas fa-exclamation-triangle"></i>
         完整 Token 仅在此处展示一次，请立即复制并妥善保存。
@@ -1737,10 +1722,10 @@ curl -X POST "{SITE_URL}/api/v1/import" \
 
     <el-dialog
       title="移动文件"
-      :visible.sync="moveDialogVisible"
+      v-model="moveDialogVisible"
       width="680px"
       append-to-body
-      custom-class="move-folder-dialog"
+      class="move-folder-dialog"
       @opened="refreshMoveDialogFolders">
       <div class="move-folder-panel">
         <div class="move-folder-summary">
@@ -1755,16 +1740,15 @@ curl -X POST "{SITE_URL}/api/v1/import" \
           <el-input
             size="small"
             clearable
-            prefix-icon="el-icon-search"
             v-model="moveDialogFolderSearch"
             placeholder="搜索后端已有目录">
+            <template #prefix><i class="fas fa-search"></i></template>
           </el-input>
           <el-button
             size="small"
-            icon="el-icon-refresh"
             :loading="moveDialogFoldersLoading"
             @click="refreshMoveDialogFolders(true)">
-            刷新目录
+            <i class="fas fa-sync-alt"></i> 刷新目录
           </el-button>
         </div>
 
@@ -1796,21 +1780,20 @@ curl -X POST "{SITE_URL}/api/v1/import" \
               size="small"
               v-model="moveDialogNewFolderPath"
               placeholder="例如：图片/2026/七月"
-              @keyup.enter.native="createFolderAndMoveSelected">
+              @keyup.enter="createFolderAndMoveSelected">
             </el-input>
             <el-button
               size="small"
               type="success"
-              icon="el-icon-folder-add"
               :loading="moveDialogLoading"
               @click="createFolderAndMoveSelected">
-              新建并移动
+              <i class="fas fa-folder-plus"></i> 新建并移动
             </el-button>
           </div>
         </div>
       </div>
 
-      <span slot="footer" class="dialog-footer move-folder-footer">
+      <template #footer><span class="dialog-footer move-folder-footer">
         <span class="move-folder-target">将移动到：{{ moveDialogTargetLabel }}</span>
         <span>
           <el-button size="small" @click="moveDialogVisible = false">取消</el-button>
@@ -1822,7 +1805,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
             移动到所选目录
           </el-button>
         </span>
-      </span>
+      </span></template>
     </el-dialog>
 
     <!-- 预览弹窗 - 模态框模式（不跳转新标签页） -->
@@ -1859,26 +1842,27 @@ curl -X POST "{SITE_URL}/api/v1/import" \
            :class="{ 'is-dragging': batchDragState.dragging }"
            :style="batchToolbarStyle">
         <span class="batch-count">已选 {{ selectedFiles.length }} 项</span>
-        <el-button-group size="mini" class="batch-actions">
-          <el-button class="batch-btn batch-btn-copy" icon="el-icon-document-copy" @click="handleBatchCopy">复制链接</el-button>
-          <el-button class="batch-btn batch-btn-move" icon="el-icon-folder-opened" @click="moveSelectedToFolder">移动目录</el-button>
-          <el-button class="batch-btn batch-btn-delete" icon="el-icon-delete" @click="handleBatchDelete">删除</el-button>
-          <el-button class="batch-btn batch-btn-download" icon="el-icon-download" @click="handleBatchDownload">下载</el-button>
+        <el-button-group size="small" class="batch-actions">
+          <el-button class="batch-btn batch-btn-copy" @click="handleBatchCopy"><i class="fas fa-copy"></i> 复制链接</el-button>
+          <el-button class="batch-btn batch-btn-move" @click="moveSelectedToFolder"><i class="fas fa-folder-open"></i> 移动目录</el-button>
+          <el-button class="batch-btn batch-btn-delete" @click="handleBatchDelete"><i class="fas fa-trash"></i> 删除</el-button>
+          <el-button class="batch-btn batch-btn-download" @click="handleBatchDownload"><i class="fas fa-download"></i> 下载</el-button>
         </el-button-group>
-        <el-button class="batch-btn batch-btn-cancel" icon="el-icon-close" @click="clearSelection">取消选择</el-button>
+        <el-button class="batch-btn batch-btn-cancel" @click="clearSelection"><i class="fas fa-times"></i> 取消选择</el-button>
         <span class="batch-shortcuts">快捷键：Ctrl/Cmd + C 复制 · M 移动 · D 下载 · Del 删除 · Esc 取消</span>
       </div>
     </transition>
   </div>
 </body>
-<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script> <!-- Vue -->
-<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/index.js"></script> <!-- ElementUI -->
+<script src="/vendor/vue/vue.global.prod.js"></script> <!-- Vue -->
+<script src="/vendor/element-plus/index.full.min.js"></script>
+  <script src="/vendor/element-plus/locale/zh-cn.min.js"></script> <!-- ElementUI -->
 <script>
-  new Vue({
-    el: '#app',
-    data: {
+  const app = Vue.createApp({
+    data() {
+      return {
       baseURL: document.location.origin,
-      Number: 0,
+      loadedCount: 0,
       totalCount: 0,
       fileConfig: {
         all: {
@@ -1996,7 +1980,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
         folderPrefix: '',
         maxFileSizeMb: 0,
       },
-      storageOptions: ['telegram', 'r2', 's3', 'discord', 'huggingface', 'webdav', 'github'],
+      storageOptions: ['telegram', 'huggingface', 'webdav', 'github'],
       moveDialogVisible: false,
       moveDialogLoading: false,
       moveDialogFoldersLoading: false,
@@ -2004,6 +1988,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
       moveDialogTargetPath: '',
       moveDialogFolderSearch: '',
       moveDialogNewFolderPath: '',
+      };
     },
     computed: {
       filteredTableData() {
@@ -2108,7 +2093,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
           path: '',
           name: '根目录',
           depth: 0,
-          fileCount: this.folderPath ? '-' : this.Number,
+          fileCount: this.folderPath ? '-' : this.loadedCount,
         }];
         const nodes = (this.folders || []).map((folder) => {
           const path = this.normalizeFolderPath(folder.path || folder.folderPath || '');
@@ -2140,7 +2125,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
         normalized.set('', {
           path: '',
           label: '根目录',
-          fileCount: this.folderPath ? 0 : this.Number,
+          fileCount: this.folderPath ? 0 : this.loadedCount,
         });
         (this.folders || []).forEach((folder) => {
           const path = this.normalizeFolderPath(folder.path || folder.folderPath || '');
@@ -2491,7 +2476,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
           return;
         }
 
-        const header = (this.$el && this.$el.querySelector('.header-content')) || document.querySelector('.header-content');
+        const header = document.querySelector('.header-content');
         if (!header) return;
 
         const rect = header.getBoundingClientRect();
@@ -2508,7 +2493,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
         if (typeof ResizeObserver !== 'function') return;
         this.unobserveMobileNavHeight();
 
-        const header = (this.$el && this.$el.querySelector('.header-content')) || document.querySelector('.header-content');
+        const header = document.querySelector('.header-content');
         if (!header) return;
 
         this.headerResizeObserver = new ResizeObserver(() => {
@@ -3696,9 +3681,9 @@ curl -X POST "{SITE_URL}/api/v1/import" \
         }
       },
       updateStats() {
-        this.Number = this.tableData.length;
-        if (!Number.isFinite(this.totalCount) || this.totalCount < this.Number) {
-          this.totalCount = this.Number;
+        this.loadedCount = this.tableData.length;
+        if (!Number.isFinite(this.totalCount) || this.totalCount < this.loadedCount) {
+          this.totalCount = this.loadedCount;
         }
         let fileCount = {image: 0, video: 0, audio: 0, document: 0};
         this.tableData.forEach(file => {
@@ -4137,21 +4122,6 @@ curl -X POST "{SITE_URL}/api/v1/import" \
               <p><i class="fas fa-database" style="width: 20px;"></i> <b>KV 存储:</b> 
                 <span style="color: ${status.kv.connected ? '#67c23a' : '#f56c6c'}">
                   ${status.kv.connected ? '✓' : '✗'} ${status.kv.message}
-                </span>
-              </p>
-              <p><i class="fas fa-cloud" style="width: 20px;"></i> <b>R2 存储:</b>
-                <span style="color: ${status.r2.connected ? '#67c23a' : (this.isUnconfiguredStatus(status.r2) ? '#909399' : '#f56c6c')}">
-                  ${status.r2.connected ? '✓' : (this.isUnconfiguredStatus(status.r2) ? '○' : '✗')} ${status.r2.message}
-                </span>
-              </p>
-              <p><i class="fas fa-database" style="width: 20px; color: #e6a23c;"></i> <b>S3 存储:</b>
-                <span style="color: ${status.s3?.connected ? '#67c23a' : (this.isUnconfiguredStatus(status.s3) ? '#909399' : '#f56c6c')}">
-                  ${status.s3?.connected ? '✓' : (this.isUnconfiguredStatus(status.s3) ? '○' : '✗')} ${status.s3?.message || '未知'}
-                </span>
-              </p>
-              <p><i class="fab fa-discord" style="width: 20px; color: #7289da;"></i> <b>Discord:</b>
-                <span style="color: ${status.discord?.connected ? '#67c23a' : (this.isUnconfiguredStatus(status.discord) ? '#909399' : '#f56c6c')}">
-                  ${status.discord?.connected ? '✓' : (this.isUnconfiguredStatus(status.discord) ? '○' : '✗')} ${status.discord?.message || '未知'}
                 </span>
               </p>
               <p><i class="fas fa-robot" style="width: 20px; color: #ff9d00;"></i> <b>HuggingFace:</b>
@@ -5016,7 +4986,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
       }
     }
     ,
-    beforeDestroy() {
+    beforeUnmount() {
       document.body.classList.remove('is-dragging-files');
       if (this.dragState.leaveTimer) {
         clearTimeout(this.dragState.leaveTimer);
@@ -5043,6 +5013,20 @@ curl -X POST "{SITE_URL}/api/v1/import" \
       document.documentElement.style.removeProperty('--nav-offset');
     }
   });
+</script>
+
+<script>
+  app.use(ElementPlus, window.ElementPlusLocaleZhCn ? { locale: window.ElementPlusLocaleZhCn } : undefined);
+  app.config.globalProperties.$message = ElementPlus.ElMessage;
+  app.config.globalProperties.$msgbox = ElementPlus.ElMessageBox;
+  app.config.globalProperties.$alert = ElementPlus.ElMessageBox.alert;
+  app.config.globalProperties.$confirm = ElementPlus.ElMessageBox.confirm;
+  app.config.globalProperties.$prompt = ElementPlus.ElMessageBox.prompt;
+  app.config.globalProperties.$notify = ElementPlus.ElNotification;
+  app.config.globalProperties.$loading = ElementPlus.ElLoading.service;
+  app.config.globalProperties.$set = (target, key, value) => { target[key] = value; };
+  app.config.globalProperties.$delete = (target, key) => { delete target[key]; };
+  app.mount('#app');
 </script>
 </body>
 </html>

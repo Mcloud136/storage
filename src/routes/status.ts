@@ -72,9 +72,9 @@ statusRoutes.get('/api/status', async (c) => {
   const status: Record<string, unknown> = {
     telegram: defaultStatus(),
     kv: defaultStatus(),
-    r2: { ...defaultStatus(), message: 'Not implemented in v2 M2' },
-    s3: { ...defaultStatus(), message: 'Not implemented in v2 M2' },
-    discord: { ...defaultStatus(), message: 'Not implemented in v2 M3' },
+    r2: { ...defaultStatus(), message: 'R2 已在 v2 中移除' },
+    s3: { ...defaultStatus(), message: 'S3 已在 v2 中移除' },
+    discord: { ...defaultStatus(), message: 'Discord 已在 v2 中移除' },
     huggingface: defaultStatus(),
     webdav: defaultStatus('mounted'),
     github: defaultStatus(),

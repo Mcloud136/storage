@@ -1,27 +1,15 @@
 {
-  "name": "k-vault",
-  "description": "K-Vault - Free File Hosting Service based on Telegram",
-  "version": "1.0.0",
+  "name": "mcloud-storage",
+  "description": "MCloud - free file hosting on Cloudflare Workers",
+  "version": "2.0.0",
+  "private": true,
   "scripts": {
-    "build": "node -e \"console.log('No build step required. For Cloudflare Pages Git integration, leave Build command and Build output directory empty.')\"",
-    "ci-test": "concurrently --kill-others --success first \"npm start\" \"wait-on http://localhost:8080 && mocha --exit\"",
-    "test": "mocha",
-    "start": "npx wrangler pages dev ./ --kv \"img_url\" --r2=R2_BUCKET --compatibility-date=2026-05-03 --port 8080 --binding BASIC_USER=admin --binding BASIC_PASS=123 --persist-to ./data",
-    "dev:v2": "wrangler dev",
-    "deploy:v2": "wrangler deploy",
-    "test:v2": "vitest run",
-    "typecheck:v2": "tsc --noEmit",
-    "v2:inventory": "node scripts/v2-inventory-kv.mjs",
-    "pages:r2:doctor": "node scripts/cloudflare-pages-r2-doctor.js",
-    "pages:deploy": "npx wrangler pages deploy .",
-    "docker:init-env": "node scripts/bootstrap-env.js",
-    "server:dev": "npm --prefix server run dev",
-    "docker:build": "docker build -t k-vault:local .",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:doctor": "node scripts/docker-storage-doctor.js",
-    "docker:smoke:ci": "node scripts/docker-ci-smoke.js",
-    "regression:storage": "node scripts/storage-regression.js"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "inventory": "node scripts/v2-inventory-kv.mjs"
   },
   "dependencies": {
     "hono": "^4.13.14"
@@ -29,21 +17,8 @@
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.7",
     "@cloudflare/workers-types": "^5.20261026.1",
-    "concurrently": "^10.0.3",
-    "mocha": "^12.0.3",
     "typescript": "^7.0.2",
     "vitest": "^4.1.12",
-    "wait-on": "^9.5.1",
     "wrangler": "^4.152.0"
-  },
-  "overrides": {
-    "@babel/runtime": "^7.29.7",
-    "axios": "^1.17.0",
-    "diff": "^9.0.0",
-    "follow-redirects": "^1.16.0",
-    "form-data": "^4.0.5",
-    "js-yaml": "^4.2.0",
-    "lodash": "^4.18.1",
-    "serialize-javascript": "^7.0.5"
   }
 }
