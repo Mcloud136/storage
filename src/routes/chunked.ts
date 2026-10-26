@@ -73,8 +73,13 @@ chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
     return json({ error: '缺少必要参数' }, 400);
   }
 
-  if (storageMode !== 'telegram' && storageMode !== 'webdav') {
-    return json({ error: `Storage backend "${storageMode}" is not implemented in v2 M2.` }, 501);
+  if (
+    storageMode !== 'telegram' &&
+    storageMode !== 'webdav' &&
+    storageMode !== 'huggingface' &&
+    storageMode !== 'github'
+  ) {
+    return json({ error: `Storage backend "${storageMode}" is not implemented in v2 M3.` }, 501);
   }
 
   if (fileSize > MAX_FILE_SIZE) {
@@ -83,10 +88,16 @@ chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
   if (storageMode === 'telegram' && fileSize > TELEGRAM_WEB_UPLOAD_LIMIT) {
     return json(
       {
-        error: 'Cloudflare Pages 上的 Telegram 网页上传仅适合 20MB 以内文件。更大的文件请切换到 WebDAV。',
+        error: 'Cloudflare Pages 上的 Telegram 网页上传仅适合 20MB 以内文件。更大的文件请切换到 WebDAV/GitHub。',
         code: 'TELEGRAM_CHUNK_UNSUPPORTED',
       },
       400
+    );
+  }
+  if (storageMode === 'huggingface' && fileSize > 35 * 1024 * 1024) {
+    return json(
+      { error: 'HuggingFace 普通上传链路限制为 35MB。', code: 'HUGGINGFACE_FILE_TOO_LARGE' },
+      413
     );
   }
 

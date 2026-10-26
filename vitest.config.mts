@@ -14,6 +14,8 @@ export default defineConfig({
           TG_Chat_ID: '-1001234567890',
           FILE_URL_SECRET: 'test-file-secret',
           TELEGRAM_LINK_MODE: 'signed',
+          TG_WEBHOOK_SECRET: 'test-webhook-secret',
+          TG_UPLOAD_NOTIFY: 'false',
         },
       },
     }),

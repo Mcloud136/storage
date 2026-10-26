@@ -1,16 +1,20 @@
 import { Hono } from 'hono';
 import type { Env } from './env';
 import { authRoutes } from './routes/auth';
+import { adminTokenRoutes } from './routes/admin-tokens';
 import { bingRoutes } from './routes/bing';
 import { chunkedRoutes } from './routes/chunked';
 import { fileRoutes } from './routes/file';
 import { fileInfoRoutes } from './routes/file-info';
 import { healthRoutes } from './routes/health';
+import { manageRoutes } from './routes/manage';
 import { shareRoutes } from './routes/s';
 import { statusRoutes } from './routes/status';
+import { telegramWebhookRoutes } from './routes/telegram-webhook';
 import { uiConfigRoutes } from './routes/ui-config';
 import { uploadRoutes } from './routes/upload';
 import { uploadFromUrlRoutes } from './routes/upload-from-url';
+import { v1Routes } from './routes/v1';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -25,6 +29,10 @@ app.route('/', chunkedRoutes);
 app.route('/', uploadRoutes);
 app.route('/', uploadFromUrlRoutes);
 app.route('/', fileRoutes);
+app.route('/', manageRoutes);
+app.route('/', adminTokenRoutes);
+app.route('/', telegramWebhookRoutes);
+app.route('/api/v1', v1Routes);
 
 // Match the legacy Pages behavior: GET/HEAD /upload renders the upload page,
 // while POST /upload is handled by uploadRoutes above.

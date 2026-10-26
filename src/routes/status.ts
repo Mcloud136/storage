@@ -5,6 +5,8 @@ import { getGuestConfig } from '../lib/guest';
 import { json } from '../lib/http';
 import { getTelegramApiBase, getTelegramBotInfo, getTelegramChatId, getTelegramToken } from '../lib/telegram';
 import { checkWebDAVConnection } from '../backends/webdav';
+import { checkHuggingFaceConnection, hasHuggingFaceConfig } from '../backends/huggingface-legacy';
+import { checkGitHubConnection, hasGitHubConfig } from '../backends/github-legacy';
 
 const MB = 1024 * 1024;
 const DIRECT_UPLOAD_THRESHOLD = 20 * MB;
@@ -72,10 +74,10 @@ statusRoutes.get('/api/status', async (c) => {
     kv: defaultStatus(),
     r2: { ...defaultStatus(), message: 'Not implemented in v2 M2' },
     s3: { ...defaultStatus(), message: 'Not implemented in v2 M2' },
-    discord: { ...defaultStatus(), message: 'Not implemented in v2 M2' },
-    huggingface: { ...defaultStatus(), message: 'Not implemented in v2 M2' },
+    discord: { ...defaultStatus(), message: 'Not implemented in v2 M3' },
+    huggingface: defaultStatus(),
     webdav: defaultStatus('mounted'),
-    github: { ...defaultStatus(), message: 'Not implemented in v2 M2' },
+    github: defaultStatus(),
     auth: {
       enabled: isAuthRequired(env),
       message: isAuthRequired(env) ? 'Enabled' : 'Disabled',
@@ -85,6 +87,8 @@ statusRoutes.get('/api/status', async (c) => {
     capabilities: [
       { type: 'telegram', label: 'Telegram', layer: 'direct' },
       { type: 'webdav', label: 'WebDAV', layer: 'mounted' },
+      { type: 'huggingface', label: 'HuggingFace', layer: 'direct' },
+      { type: 'github', label: 'GitHub', layer: 'direct' },
     ],
   };
 
@@ -132,6 +136,32 @@ statusRoutes.get('/api/status', async (c) => {
     layer: 'mounted',
     message: webdav.message,
   };
+
+  if (hasHuggingFaceConfig(env)) {
+    const hf = await checkHuggingFaceConnection(env);
+    status.huggingface = {
+      connected: Boolean(hf?.connected),
+      enabled: true,
+      configured: true,
+      layer: 'direct',
+      message: hf?.connected
+        ? `Connected: ${hf.repoId || 'dataset'}${hf.isPrivate ? ' (private)' : ''}`
+        : hf?.error || 'HuggingFace check failed',
+    };
+  }
+
+  if (hasGitHubConfig(env)) {
+    const gh = await checkGitHubConnection(env);
+    status.github = {
+      connected: Boolean(gh?.connected),
+      enabled: true,
+      configured: true,
+      layer: 'direct',
+      message: gh?.connected
+        ? `Connected${gh.mode ? ` (${gh.mode})` : ''}`
+        : gh?.message || 'GitHub check failed',
+    };
+  }
 
   return json(status, 200, { 'Cache-Control': 'no-store' });
 });

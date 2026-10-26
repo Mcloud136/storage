@@ -13,7 +13,9 @@ const MB = 1024 * 1024;
 export const uploadFromUrlRoutes = new Hono<{ Bindings: Env }>();
 
 function maxBytesFor(storageMode: string): number {
-  return storageMode === 'telegram' ? 20 * MB : 100 * MB;
+  if (storageMode === 'telegram') return 20 * MB;
+  if (storageMode === 'huggingface') return 35 * MB;
+  return 100 * MB;
 }
 
 function statusForError(error: unknown): number {

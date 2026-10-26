@@ -56,6 +56,8 @@ export interface UploadResult {
 const LIMITS: Record<string, number> = {
   telegram: 20 * 1024 * 1024,
   webdav: 100 * 1024 * 1024,
+  huggingface: 35 * 1024 * 1024,
+  github: 100 * 1024 * 1024,
 };
 
 export function normalizeFolderPath(value: string | undefined): string {
@@ -217,7 +219,9 @@ export async function uploadSource(options: UploadOptions): Promise<UploadResult
     };
   }
 
-  const publicId = `${randomId('wd')}.${extension}`;
+  const prefix =
+    normalizedMode === 'webdav' ? 'wd' : normalizedMode === 'huggingface' ? 'hf' : 'github';
+  const publicId = `${randomId(prefix)}.${extension}`;
   const putResult = await backend.put({
     id: publicId,
     fileName: source.fileName,
@@ -227,9 +231,10 @@ export async function uploadSource(options: UploadOptions): Promise<UploadResult
     folderPath: normalizedFolder,
   });
 
-  const kvKey = `webdav:${publicId}`;
+  const kvPrefix = normalizedMode === 'huggingface' ? 'hf' : normalizedMode;
+  const kvKey = `${kvPrefix}:${publicId}`;
   const metadata: FileMetadata = {
-    ...commonMetadata(source, 'webdav', normalizedFolder),
+    ...commonMetadata(source, normalizedMode, normalizedFolder),
     ...putResult.meta,
   };
 
@@ -239,6 +244,6 @@ export async function uploadSource(options: UploadOptions): Promise<UploadResult
     src: `/file/${kvKey}`,
     kvKey,
     publicId,
-    storageType: 'webdav',
+    storageType: normalizedMode,
   };
 }
