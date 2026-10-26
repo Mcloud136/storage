@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mcloud-storage-v2",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "html_handling": "none",
+    "run_worker_first": ["/api/*", "/upload", "/file/*", "/s/*", "/share/*"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "img_url",
+      "id": "c511311f1f2f4e00ba7566b3d2411f56"
+    }
+  ]
+}

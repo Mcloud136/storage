@@ -13,3 +13,5 @@ test-login.json
 
 node_modules/
 server/node_modules/
+
+.dev.vars
