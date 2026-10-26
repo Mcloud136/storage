@@ -4073,7 +4073,7 @@
                 supportsChunkUpload: true,
               },
               huggingface: {
-                maxBytes: 35 * 1024 * 1024,
+                maxBytes: this.uploadConfig.maxSize,
                 directThreshold: this.uploadConfig.smallFileThreshold,
                 supportsChunkUpload: true,
               },
@@ -4717,11 +4717,38 @@
             this.handleUploadSuccess(item, src);
           },
 
+          async computeHfFingerprint(file) {
+            const sampleBuffer = await file.slice(0, 512).arrayBuffer();
+            const sample = btoa(
+              Array.from(new Uint8Array(sampleBuffer), (byte) =>
+                String.fromCharCode(byte),
+              ).join(""),
+            );
+            const hashBuffer = await crypto.subtle.digest(
+              "SHA-256",
+              await file.arrayBuffer(),
+            );
+            const fileHash = Array.from(new Uint8Array(hashBuffer), (byte) =>
+              byte.toString(16).padStart(2, "0"),
+            ).join("");
+            return { fileHash, sample };
+          },
+
           // 分片上传（大文件 >=20MB）
           async chunkedUpload(item) {
             const file = item.file;
-            const chunkSize = this.uploadConfig.chunkSize;
-            const totalChunks = Math.ceil(file.size / chunkSize);
+            const storageMode = this.getItemStorageMode(item);
+            let chunkSize = this.uploadConfig.chunkSize;
+            let totalChunks = Math.ceil(file.size / chunkSize);
+            let fileHash = "";
+            let sample = "";
+
+            if (storageMode === "huggingface") {
+              item.progress = 2;
+              const fingerprint = await this.computeHfFingerprint(file);
+              fileHash = fingerprint.fileHash;
+              sample = fingerprint.sample;
+            }
 
             // 1. 初始化上传
             const initResponse = await fetch(
@@ -4734,8 +4761,10 @@
                   fileSize: file.size,
                   fileType: file.type,
                   totalChunks: totalChunks,
-                  storageMode: this.getItemStorageMode(item),
+                  storageMode,
                   folderPath: this.getItemFolderPath(item),
+                  fileHash,
+                  sample,
                 }),
                 credentials: "include",
               },
@@ -4747,6 +4776,98 @@
             }
 
             const uploadId = initData.uploadId;
+
+            if (initData.mode === "hf-direct") {
+              const parts = Array.isArray(initData.parts) ? initData.parts : [];
+              const etags = [];
+
+              if (initData.singleUrl) {
+                const singleResponse = await fetch(initData.singleUrl, {
+                  method: "PUT",
+                  body: file,
+                });
+                if (!singleResponse.ok) {
+                  throw new Error(`HuggingFace 直传失败：${singleResponse.status}`);
+                }
+                item.progress = 90;
+              } else if (parts.length) {
+                const partSize = Number(initData.partSize || 0);
+                if (!partSize) throw new Error("HuggingFace 未返回分片大小");
+                let workerFallback = false;
+
+                for (let i = 0; i < parts.length; i++) {
+                  const part = parts[i];
+                  const start = (Number(part.partNumber) - 1) * partSize;
+                  const end = Math.min(start + partSize, file.size);
+                  const blob = file.slice(start, end);
+                  let etag = "";
+
+                  if (!workerFallback) {
+                    try {
+                      const partResponse = await fetch(part.url, {
+                        method: "PUT",
+                        body: blob,
+                      });
+                      if (!partResponse.ok) {
+                        throw new Error(`分片 ${part.partNumber} 上传失败`);
+                      }
+                      etag = partResponse.headers.get("ETag") || "";
+                      if (!etag) throw new Error("分片未返回 ETag");
+                    } catch (error) {
+                      workerFallback = true;
+                    }
+                  }
+
+                  if (workerFallback) {
+                    const formData = new FormData();
+                    formData.append("chunk", blob);
+                    formData.append("uploadId", uploadId);
+                    formData.append("chunkIndex", i);
+                    const chunkResponse = await fetch(
+                      `${this.baseURL}/api/chunked-upload/chunk`,
+                      {
+                        method: "POST",
+                        body: formData,
+                        credentials: "include",
+                      },
+                    );
+                    const chunkData = await chunkResponse.json().catch(() => ({}));
+                    if (!chunkResponse.ok) {
+                      throw new Error(
+                        chunkData.error || `分片 ${i + 1} 上传失败`,
+                      );
+                    }
+                    etag = chunkData.etag || "";
+                    if (!etag) throw new Error("分片未返回 ETag");
+                  }
+
+                  etags.push({ partNumber: part.partNumber, etag });
+                  item.progress = Math.round(((i + 1) / parts.length) * 90);
+                }
+              }
+
+              const completeResponse = await fetch(
+                `${this.baseURL}/api/chunked-upload/complete`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ uploadId, etags }),
+                  credentials: "include",
+                },
+              );
+              const completeData = await completeResponse.json();
+              if (!completeResponse.ok) {
+                throw new Error(completeData.error || "HuggingFace 提交失败");
+              }
+
+              item.status = "success";
+              item.progress = 100;
+              this.handleUploadSuccess(item, completeData.src);
+              return;
+            }
+
+            chunkSize = initData.chunkSize || chunkSize;
+            totalChunks = initData.totalChunks || totalChunks;
 
             // 2. 上传分片
             for (let i = 0; i < totalChunks; i++) {

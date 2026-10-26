@@ -16,6 +16,8 @@ export default defineConfig({
           TELEGRAM_LINK_MODE: 'signed',
           TG_WEBHOOK_SECRET: 'test-webhook-secret',
           TG_UPLOAD_NOTIFY: 'false',
+          HF_TOKEN: 'hf_test_token',
+          HF_REPO: 'wxmuma/test-repo',
         },
       },
     }),

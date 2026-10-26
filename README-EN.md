@@ -108,6 +108,8 @@ Browser uploads are limited to 20MB by the Cloudflare request body limit. Use We
 
 `HF_TOKEN` and `HF_REPO` (dataset repository id).
 
+Files larger than 20MB use HuggingFace LFS direct upload: the Worker only handles preupload, LFS batch and commit, while the browser PUTs presigned part URLs directly. If browser CORS/ETag is unavailable, the Worker automatically proxies the parts. The per-file limit is 100MB and the whole file is never buffered in Worker memory.
+
 ### GitHub
 
 `GITHUB_TOKEN`, `GITHUB_REPO`, optional `GITHUB_MODE` (`releases` or `contents`), `GITHUB_PREFIX`, `GITHUB_BRANCH`, `GITHUB_RELEASE_TAG`, `GITHUB_API_BASE`.
@@ -137,7 +139,8 @@ npm run inventory  # read-only KV key inventory
 
 - Workers free plan: 10ms CPU per request, 128MB memory, 50 subrequests.
 - Request body limit: 100MB. Chunked uploads use 5MB parts and are merged in memory; keep files below ~90MB.
-- Telegram browser upload: 20MB. HuggingFace regular upload: ~35MB. GitHub contents: keep below 20MB.
+- Telegram cloud Bot API: 20MB download limit via `getFile` (uploads up to 50MB, but larger files cannot be fetched back). Use a self-hosted Bot API or WebDAV for larger files.
+- HuggingFace browser LFS direct upload: 100MB. GitHub contents: keep below 20MB.
 - KV free tier: 100k reads/day, 1k writes/day. Chunked uploads consume several writes.
 - Signed links bypass KV, so they ignore block lists and deletion state. Use normal `/file/:id` links when revocation matters.
 

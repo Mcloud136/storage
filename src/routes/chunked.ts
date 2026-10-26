@@ -1,13 +1,36 @@
 import { Hono } from 'hono';
 import type { Env } from '../env';
+import type { FileMetadata } from '../core/keys';
+import { getFileExtension } from '../lib/telegram';
 import { requireAdmin } from '../lib/auth';
 import { json } from '../lib/http';
 import { StorageError } from '../backends/types';
-import { uploadSource, UploadError, type WaitUntilContext } from '../services/upload';
+import {
+  commitHuggingFaceLfs,
+  completeHuggingFaceMultipart,
+  planHuggingFaceDirectUpload,
+  type HfLfsPart,
+} from '../backends/huggingface-lfs';
+import { normalizeFolderPath, uploadSource, UploadError, type WaitUntilContext } from '../services/upload';
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const TELEGRAM_WEB_UPLOAD_LIMIT = 20 * 1024 * 1024;
+const HF_DIRECT_THRESHOLD = 20 * 1024 * 1024;
+const HF_DIRECT_MAX = 100 * 1024 * 1024;
+
+interface HfDirectTask {
+  kind: 'multipart' | 'single' | 'exists';
+  path: string;
+  publicId: string;
+  kvKey: string;
+  oid: string;
+  size: number;
+  partSize: number;
+  parts: HfLfsPart[];
+  completionUrl?: string;
+  singleUrl?: string;
+}
 
 interface ChunkTask {
   uploadId: string;
@@ -19,6 +42,8 @@ interface ChunkTask {
   folderPath: string;
   createdAt: number;
   status: string;
+  mode?: 'kv' | 'hf-direct';
+  hf?: HfDirectTask;
 }
 
 export const chunkedRoutes = new Hono<{ Bindings: Env }>();
@@ -37,6 +62,13 @@ function newUploadId(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function newPublicId(fileName: string, contentType: string): string {
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `hf_${Date.now()}_${suffix}.${getFileExtension(fileName, contentType)}`;
+}
+
 function errorStatus(error: unknown): number {
   if (error instanceof UploadError) return error.status;
   if (error instanceof StorageError) {
@@ -50,6 +82,28 @@ function errorStatus(error: unknown): number {
 function errorCode(error: unknown): string {
   if (error instanceof UploadError || error instanceof StorageError) return error.code;
   return 'UPLOAD_FAILED';
+}
+
+function readEtags(value: unknown): Map<number, string> {
+  const result = new Map<number, string>();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (!item || typeof item !== 'object') continue;
+      const record = item as Record<string, unknown>;
+      const partNumber = Number(record.partNumber ?? record.part);
+      const etag = String(record.etag ?? '').trim();
+      if (Number.isInteger(partNumber) && partNumber > 0 && etag) result.set(partNumber, etag);
+    }
+    return result;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, etag] of Object.entries(value as Record<string, unknown>)) {
+      const partNumber = Number(key);
+      const text = String(etag ?? '').trim();
+      if (Number.isInteger(partNumber) && partNumber > 0 && text) result.set(partNumber, text);
+    }
+  }
+  return result;
 }
 
 chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
@@ -69,7 +123,7 @@ chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
   const storageMode = String(body.storageMode || 'telegram').toLowerCase();
   const folderPath = String(body.folderPath || body.folder || '');
 
-  if (!fileName || !fileSize || !totalChunks) {
+  if (!fileName || !fileSize) {
     return json({ error: '缺少必要参数' }, 400);
   }
 
@@ -79,7 +133,7 @@ chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
     storageMode !== 'huggingface' &&
     storageMode !== 'github'
   ) {
-    return json({ error: `Storage backend "${storageMode}" is not implemented in v2 M3.` }, 501);
+    return json({ error: `Storage backend "${storageMode}" is not implemented.` }, 501);
   }
 
   if (fileSize > MAX_FILE_SIZE) {
@@ -88,17 +142,99 @@ chunkedRoutes.post('/api/chunked-upload/init', async (c) => {
   if (storageMode === 'telegram' && fileSize > TELEGRAM_WEB_UPLOAD_LIMIT) {
     return json(
       {
-        error: 'Cloudflare Pages 上的 Telegram 网页上传仅适合 20MB 以内文件。更大的文件请切换到 WebDAV/GitHub。',
+        error: 'Telegram 云端 Bot API 的下载上限为 20MB；更大的文件请使用 HuggingFace 或 WebDAV。',
         code: 'TELEGRAM_CHUNK_UNSUPPORTED',
       },
       400
     );
   }
-  if (storageMode === 'huggingface' && fileSize > 35 * 1024 * 1024) {
-    return json(
-      { error: 'HuggingFace 普通上传链路限制为 35MB。', code: 'HUGGINGFACE_FILE_TOO_LARGE' },
-      413
-    );
+
+  if (storageMode === 'huggingface' && fileSize > HF_DIRECT_THRESHOLD) {
+    if (fileSize > HF_DIRECT_MAX) {
+      return json({ error: `HuggingFace 直传上限为 ${HF_DIRECT_MAX / 1024 / 1024}MB。`, code: 'FILE_TOO_LARGE' }, 413);
+    }
+
+    const fileHash = String(body.fileHash || '').trim().toLowerCase();
+    const sampleBase64 = String(body.sample || '').trim();
+    if (!/^[a-f0-9]{64}$/.test(fileHash) || !sampleBase64) {
+      return json(
+        { error: 'HuggingFace 大文件直传需要 fileHash 和 sample。', code: 'HF_FINGERPRINT_REQUIRED' },
+        400
+      );
+    }
+
+    const normalizedFolder = normalizeFolderPath(folderPath);
+    const publicId = newPublicId(fileName, fileType);
+    const path = normalizedFolder ? `${normalizedFolder}/${publicId}` : publicId;
+
+    let plan: Awaited<ReturnType<typeof planHuggingFaceDirectUpload>>;
+    try {
+      plan = await planHuggingFaceDirectUpload(env, {
+        path,
+        size: fileSize,
+        oid: fileHash,
+        sampleBase64,
+      });
+    } catch (error) {
+      return json(
+        { error: error instanceof Error ? error.message : 'HuggingFace 直传初始化失败', code: errorCode(error) },
+        errorStatus(error)
+      );
+    }
+
+    if (plan.mode === 'regular' && fileSize > 35 * 1024 * 1024) {
+      return json(
+        { error: 'HuggingFace 未将该文件判定为 LFS，超过 35MB 无法安全上传。', code: 'HF_LFS_REQUIRED' },
+        413
+      );
+    }
+
+    if (plan.mode !== 'regular') {
+      const uploadId = newUploadId();
+      const kvKey = `hf:${publicId}`;
+      const hf: HfDirectTask = {
+        kind: plan.mode,
+        path,
+        publicId,
+        kvKey,
+        oid: plan.oid,
+        size: plan.size,
+        partSize: plan.mode === 'multipart' ? plan.partSize : plan.size,
+        parts: plan.mode === 'multipart' ? plan.parts : [],
+        ...(plan.mode === 'multipart' ? { completionUrl: plan.completionUrl } : {}),
+        ...(plan.mode === 'single' ? { singleUrl: plan.uploadUrl } : {}),
+      };
+      const task: ChunkTask = {
+        uploadId,
+        fileName,
+        fileSize,
+        fileType,
+        totalChunks: plan.mode === 'multipart' ? plan.parts.length : 1,
+        storageMode,
+        folderPath: normalizedFolder,
+        createdAt: Date.now(),
+        status: 'pending',
+        mode: 'hf-direct',
+        hf,
+      };
+
+      await env.img_url.put(taskKey(uploadId), JSON.stringify(task), { expirationTtl: 3600 });
+
+      return json({
+        success: true,
+        uploadId,
+        mode: 'hf-direct',
+        uploadKind: plan.mode,
+        partSize: hf.partSize,
+        parts: hf.parts,
+        singleUrl: hf.singleUrl || null,
+        totalParts: hf.parts.length,
+      });
+    }
+  }
+
+  if (!totalChunks) {
+    return json({ error: '缺少必要参数' }, 400);
   }
 
   const uploadId = newUploadId();
@@ -156,6 +292,31 @@ chunkedRoutes.post('/api/chunked-upload/chunk', async (c) => {
     return json({ error: '分片索引超出范围' }, 400);
   }
 
+  if (task.mode === 'hf-direct') {
+    const hf = task.hf;
+    if (!hf || hf.kind !== 'multipart') {
+      return json({ error: '该 HuggingFace 任务不需要分片。' }, 400);
+    }
+    const part = hf.parts[chunkIndex];
+    if (!part) {
+      return json({ error: '分片索引超出范围' }, 400);
+    }
+    const buffer = await chunk.arrayBuffer();
+    const response = await fetch(part.url, { method: 'PUT', body: buffer });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return json(
+        { error: `HuggingFace 分片 ${part.partNumber} 上传失败：${text || response.status}`, code: 'UPSTREAM' },
+        502
+      );
+    }
+    const etag = response.headers.get('ETag');
+    if (!etag) {
+      return json({ error: 'HuggingFace 分片上传未返回 ETag。', code: 'UPSTREAM' }, 502);
+    }
+    return json({ success: true, chunkIndex, partNumber: part.partNumber, etag });
+  }
+
   const buffer = await chunk.arrayBuffer();
   await env.img_url.put(chunkKey(uploadId, chunkIndex), buffer, { expirationTtl: 3600 });
 
@@ -180,6 +341,65 @@ chunkedRoutes.post('/api/chunked-upload/complete', async (c) => {
   const task = await env.img_url.get<ChunkTask>(taskKey(uploadId), { type: 'json' });
   if (!task) {
     return json({ error: '上传任务不存在或已过期' }, 404);
+  }
+
+  if (task.mode === 'hf-direct') {
+    const hf = task.hf;
+    if (!hf) {
+      return json({ error: '上传任务状态异常' }, 500);
+    }
+
+    try {
+      if (hf.kind === 'multipart') {
+        if (!hf.completionUrl) {
+          return json({ error: '上传任务缺少合并地址' }, 500);
+        }
+        const etags = readEtags(body.etags);
+        const missing = hf.parts
+          .map((part) => part.partNumber)
+          .filter((partNumber) => !etags.has(partNumber));
+        if (missing.length) {
+          return json({ error: `分片不完整，缺少 ETag：${missing.join(',')}`, code: 'MISSING_ETAGS' }, 400);
+        }
+        await completeHuggingFaceMultipart(env, {
+          oid: hf.oid,
+          completionUrl: hf.completionUrl,
+          parts: hf.parts.map((part) => ({
+            partNumber: part.partNumber,
+            etag: etags.get(part.partNumber) || '',
+          })),
+        });
+      }
+
+      const commitOid = await commitHuggingFaceLfs(env, {
+        path: hf.path,
+        oid: hf.oid,
+        size: hf.size,
+        fileName: task.fileName,
+      });
+
+      const metadata: FileMetadata = {
+        TimeStamp: Date.now(),
+        ListType: 'None',
+        Label: 'None',
+        liked: false,
+        fileName: task.fileName,
+        fileSize: task.fileSize,
+        storageType: 'huggingface',
+        ...(task.folderPath ? { folderPath: task.folderPath } : {}),
+        hfPath: hf.path,
+        ...(commitOid ? { hfCommit: commitOid } : {}),
+      };
+      await env.img_url.put(hf.kvKey, '', { metadata });
+      await env.img_url.delete(taskKey(uploadId));
+
+      return json({ success: true, src: `/file/${hf.kvKey}` });
+    } catch (error) {
+      return json(
+        { error: error instanceof Error ? error.message : 'HuggingFace 提交失败', code: errorCode(error) },
+        errorStatus(error)
+      );
+    }
   }
 
   const chunks: ArrayBuffer[] = [];

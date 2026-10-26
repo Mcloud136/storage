@@ -152,6 +152,8 @@ Bot 需要加入目标频道/群并有发言权限。`getWebhookInfo` 可用于�
 | `HF_TOKEN` | 具有写权限的 Token |
 | `HF_REPO` | Dataset 仓库 ID（`owner/name`） |
 
+20MB 以上的文件走 HuggingFace LFS 直传：Worker 只负责 preupload、LFS batch 和 commit，浏览器直接 PUT 预签名分片 URL；如果浏览器 CORS/ETag 不可用，会自动回退到 Worker 中转分片。单文件上限 100MB，不需要把整文件读入 Worker 内存。
+
 ### GitHub
 
 | 变量 | 说明 |
@@ -206,7 +208,8 @@ npm run inventory    # 只读盘点 KV 键分布
 
 - Workers 免费版：10ms CPU / 请求、128MB 内存、50 个子请求。
 - 请求体上限 100MB；分片上传按 5MB 切分，complete 阶段在 Worker 内存合并，建议单文件不超过 90MB。
-- Telegram 网页上传 20MB；HuggingFace 普通上传约 35MB；GitHub contents 模式建议不超过 20MB。
+- Telegram 云端 Bot API 的 `getFile` 下载上限为 20MB（上传上限 50MB，但超过 20MB 的文件无法取回）；需要更大文件请使用自部署 Bot API 或 WebDAV。
+- HuggingFace 浏览器 LFS 直传上限 100MB；GitHub contents 模式建议不超过 20MB。
 - KV 免费额度：读 10 万次/天、写 1000 次/天。分片上传会消耗多次写入，`/api/status` 会返回当前限制。
 - 签名直链不读取 KV，因此不受黑白名单/删除状态影响；需要可撤销的分享请使用普通 `/file/:id` 或分享链接。
 

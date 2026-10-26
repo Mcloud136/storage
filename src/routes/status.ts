@@ -31,7 +31,7 @@ function uploadLimits() {
       directThreshold: DIRECT_UPLOAD_THRESHOLD,
       supportsChunkUpload: false,
       message:
-        'Cloudflare Pages 上的 Telegram 网页上传限制为 20MB。较大的浏览器上传请使用 WebDAV，或直接把文件发到 Telegram 后使用 Webhook 回链。',
+        'Telegram 云端 Bot API 的 getFile 下载上限为 20MB；更大的文件请使用 HuggingFace 或 WebDAV。',
     },
     r2: {
       maxBytes: CHUNK_UPLOAD_LIMIT,
@@ -50,9 +50,10 @@ function uploadLimits() {
       message: 'Discord 上传上限受服务器加成影响，v2 暂未实现。',
     },
     huggingface: {
-      maxBytes: 35 * MB,
+      maxBytes: CHUNK_UPLOAD_LIMIT,
       directThreshold: DIRECT_UPLOAD_THRESHOLD,
       supportsChunkUpload: true,
+      message: 'HuggingFace LFS 直传，单文件上限 100MB。',
     },
     webdav: {
       maxBytes: CHUNK_UPLOAD_LIMIT,
