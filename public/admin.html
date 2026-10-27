@@ -3602,6 +3602,15 @@ curl -X POST "{SITE_URL}/api/v1/import" \
             this.sortOption === 'sizeDesc' ? data.sort((a, b) => b.metadata.fileSize - a.metadata.fileSize) :
             data.sort((a, b) => b.metadata.TimeStamp - a.metadata.TimeStamp);
       },
+      escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[character]);
+      },
       formattedFileDetails(item) {
         const metadata = item.metadata;
         const timestamp = new Date(metadata.TimeStamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
@@ -3618,13 +3627,13 @@ curl -X POST "{SITE_URL}/api/v1/import" \
         const folderPath = this.normalizeFolderPath(metadata.folderPath || '');
         return `
           <div style="text-align: left; padding: 5px;">
-            <div><strong>ID：</strong>${item.name}</div>
-            <div><strong>文件名：</strong>${metadata.fileName || item.name}</div>
-            <div><strong>文件大小：</strong>${fileSize}</div>
-            <div><strong>存储位置：</strong><span style="color: ${storageColor}; font-weight: bold;">${storageLabel}</span></div>
-            <div><strong>所在目录：</strong>${folderPath || '根目录'}</div>
-            <div><strong>上传时间：</strong>${timestamp}</div>
-            <div><strong>状态：</strong>${metadata.ListType || 'None'}</div>
+            <div><strong>ID：</strong>${this.escapeHtml(item.name)}</div>
+            <div><strong>文件名：</strong>${this.escapeHtml(metadata.fileName || item.name)}</div>
+            <div><strong>文件大小：</strong>${this.escapeHtml(fileSize)}</div>
+            <div><strong>存储位置：</strong><span style="color: ${storageColor}; font-weight: bold;">${this.escapeHtml(storageLabel)}</span></div>
+            <div><strong>所在目录：</strong>${this.escapeHtml(folderPath || '根目录')}</div>
+            <div><strong>上传时间：</strong>${this.escapeHtml(timestamp)}</div>
+            <div><strong>状态：</strong>${this.escapeHtml(metadata.ListType || 'None')}</div>
           </div>
         `;
       },

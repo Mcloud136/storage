@@ -384,7 +384,11 @@ export async function getHuggingFaceFile(pathInRepo, env, options = {}) {
         return new Response('HuggingFace 仓库未配置', { status: 500 });
     }
 
-    const url = `${HF_BASE_URL}/datasets/${repo}/resolve/main/${pathInRepo}`;
+    const encodedPath = String(pathInRepo || '')
+        .split('/')
+        .map((segment) => encodeURIComponent(segment))
+        .join('/');
+    const url = `${HF_BASE_URL}/datasets/${repo}/resolve/main/${encodedPath}`;
     const headers = {};
 
     // 私有仓库需要 Token
@@ -396,6 +400,7 @@ export async function getHuggingFaceFile(pathInRepo, env, options = {}) {
     }
 
     return fetch(url, {
+        method: options.method === 'HEAD' ? 'HEAD' : 'GET',
         headers,
         redirect: 'follow'
     });
@@ -406,7 +411,12 @@ export async function getHuggingFaceFile(pathInRepo, env, options = {}) {
  */
 export function getHuggingFacePublicUrl(pathInRepo, env) {
     const { repo } = getHuggingFaceConfig(env);
-    return repo ? `${HF_BASE_URL}/datasets/${repo}/resolve/main/${pathInRepo}` : '';
+    if (!repo) return '';
+    const encodedPath = String(pathInRepo || '')
+        .split('/')
+        .map((segment) => encodeURIComponent(segment))
+        .join('/');
+    return `${HF_BASE_URL}/datasets/${repo}/resolve/main/${encodedPath}`;
 }
 
 /**
@@ -458,7 +468,7 @@ export async function checkHuggingFaceConnection(env) {
     try {
         const response = await fetch(
             `${HF_BASE_URL}/api/datasets/${repo}`,
-            { headers: { 'Authorization': `Bearer ${token}` } }
+            { headers: { 'Authorization': `Bearer ${token}` }, signal: AbortSignal.timeout(8000) }
         );
 
         if (response.ok) {

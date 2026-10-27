@@ -294,7 +294,7 @@ async function resolveReleaseAsset(config, storageKey, metadata = {}) {
   return findReleaseAsset(config, releaseId, assetName);
 }
 
-async function downloadViaContents(config, storageKey, metadata = {}, range = '') {
+async function downloadViaContents(config, storageKey, metadata = {}, range = '', method = 'GET') {
   const pathInRepo = metadata.githubPath || contentsStoragePath(config, storageKey);
   if (!pathInRepo) return null;
 
@@ -302,6 +302,7 @@ async function downloadViaContents(config, storageKey, metadata = {}, range = ''
   if (range) headers.Range = range;
 
   const response = await fetch(repoApi(config, `/contents/${encodePath(pathInRepo)}`), {
+    method,
     headers: authHeaders(config, headers, 'application/vnd.github.raw'),
     redirect: 'follow',
   });
@@ -315,7 +316,7 @@ async function downloadViaContents(config, storageKey, metadata = {}, range = ''
   return response;
 }
 
-async function downloadViaReleases(config, storageKey, metadata = {}, range = '') {
+async function downloadViaReleases(config, storageKey, metadata = {}, range = '', method = 'GET') {
   const asset = await resolveReleaseAsset(config, storageKey, metadata);
   if (!asset?.id) return null;
 
@@ -323,6 +324,7 @@ async function downloadViaReleases(config, storageKey, metadata = {}, range = ''
   if (range) headers.Range = range;
 
   const assetApiResponse = await fetch(repoApi(config, `/releases/assets/${asset.id}`), {
+    method,
     headers: authHeaders(config, headers, 'application/octet-stream'),
     redirect: 'manual',
   });
@@ -334,6 +336,7 @@ async function downloadViaReleases(config, storageKey, metadata = {}, range = ''
       throw new Error('GitHub release download redirect URL is missing.');
     }
     const response = await fetch(redirectUrl, {
+      method,
       headers: range ? { Range: range } : {},
       redirect: 'follow',
     });
@@ -418,9 +421,9 @@ export async function getGitHubFile(storageKey, metadata = {}, env = {}, options
 
   const mode = String(metadata.githubMode || config.mode || 'releases').toLowerCase();
   if (mode === 'contents') {
-    return downloadViaContents(config, storageKey, metadata, options.range || '');
+    return downloadViaContents(config, storageKey, metadata, options.range || '', options.method || 'GET');
   }
-  return downloadViaReleases(config, storageKey, metadata, options.range || '');
+  return downloadViaReleases(config, storageKey, metadata, options.range || '', options.method || 'GET');
 }
 
 export async function deleteGitHubFile(storageKey, metadata = {}, env = {}) {
@@ -449,6 +452,7 @@ export async function checkGitHubConnection(env = {}) {
   try {
     const repoResponse = await fetch(repoApi(config, ''), {
       headers: authHeaders(config),
+      signal: AbortSignal.timeout(8000),
     });
     if (!repoResponse.ok) {
       const detail = await parseErrorBody(repoResponse);

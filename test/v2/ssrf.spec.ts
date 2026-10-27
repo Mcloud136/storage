@@ -10,6 +10,11 @@ describe('remote import SSRF guard', () => {
       'http://10.0.0.1/x',
       'http://192.168.1.1/x',
       'http://172.16.0.9/x',
+      'http://[::1]/x',
+      'http://[::ffff:127.0.0.1]/x',
+      'http://[::ffff:7f00:1]/x',
+      'http://[::7f00:1]/x',
+      'http://localhost./x',
     ];
 
     for (const url of urls) {

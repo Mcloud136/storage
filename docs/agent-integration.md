@@ -70,7 +70,7 @@ curl "https://your-kvault-domain/api/v1/capabilities"
 ```
 
 ```json
-{"success":true,"data":{"apiVersion":"v1","upload":true,"importFromUrl":true,"maxUploadSize":104857600,"storages":["telegram","r2"],"imageTypes":["image/jpeg","image/png","image/webp","image/avif","image/gif","image/bmp"]}}
+{"success":true,"data":{"apiVersion":"v1","upload":true,"importFromUrl":true,"maxUploadSize":52428800,"storageLimits":{"telegram":20971520,"huggingface":36700160,"webdav":52428800,"github":52428800},"storages":["telegram","webdav","huggingface","github"],"imageTypes":["image/jpeg","image/png","image/webp","image/avif","image/gif","image/bmp"]}}
 ```
 
 `storages` 仅列出已配置可用的后端。

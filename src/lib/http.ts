@@ -46,15 +46,35 @@ export function fileError(message: string, status = 500): Response {
   return new Response(message, { status, headers });
 }
 
+const DANGEROUS_INLINE_TYPES = new Set([
+  'text/html',
+  'application/xhtml+xml',
+  'image/svg+xml',
+  'text/xml',
+  'application/xml',
+  'text/javascript',
+  'application/javascript',
+  'application/x-javascript',
+  'text/css',
+]);
+
 export function buildFileHeaders(fileName: string, mimeType: string): Headers {
   const headers = fileCorsHeaders();
-  headers.set('Content-Type', mimeType || 'application/octet-stream');
+  const normalizedType = String(mimeType || '').split(';')[0].trim().toLowerCase();
+  const forceDownload = DANGEROUS_INLINE_TYPES.has(normalizedType);
+  headers.set('Content-Type', forceDownload ? 'application/octet-stream' : mimeType || 'application/octet-stream');
   headers.set('Cache-Control', 'no-store, max-age=0');
   headers.set('Accept-Ranges', 'bytes');
+  headers.set('X-Content-Type-Options', 'nosniff');
+
+  if (forceDownload) {
+    headers.set('Content-Security-Policy', 'sandbox');
+  }
 
   if (fileName) {
     const encoded = encodeURIComponent(fileName);
-    headers.set('Content-Disposition', `inline; filename="${encoded}"; filename*=UTF-8''${encoded}`);
+    const disposition = forceDownload ? 'attachment' : 'inline';
+    headers.set('Content-Disposition', `${disposition}; filename="${encoded}"; filename*=UTF-8''${encoded}`);
   }
 
   return headers;

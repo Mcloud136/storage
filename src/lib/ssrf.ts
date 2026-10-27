@@ -53,15 +53,25 @@ function isPrivateIPv6(host: string): boolean {
   if (value.startsWith('fc') || value.startsWith('fd')) return true;
   if (['fec', 'fed', 'fee', 'fef'].some((prefix) => value.startsWith(prefix))) return true;
   if (value.startsWith('fd00:ec2:')) return true;
-  if (value.startsWith('::ffff:')) {
-    const mapped = value.slice(7);
-    if (mapped.includes('.')) return isPrivateIPv4(mapped);
+  if (value.startsWith('ff')) return true;
+
+  // IPv4-mapped/compatible forms must be treated as IPv4, otherwise
+  // [::ffff:127.0.0.1] and ::7f00:1 bypass the literal checks.
+  if (value.startsWith('::ffff:') || value.includes(':ffff:')) return true;
+
+  const compatible = /^::([0-9a-f]{1,4})(?::([0-9a-f]{1,4}))?$/.exec(value);
+  if (compatible) {
+    const high = parseInt(compatible[1], 16);
+    const low = parseInt(compatible[2] || '0', 16);
+    const mapped = `${(high >> 8) & 255}.${high & 255}.${(low >> 8) & 255}.${low & 255}`;
+    if (isPrivateIPv4(mapped)) return true;
   }
+
   return false;
 }
 
 export function isPrivateHost(hostname: string): boolean {
-  const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+  const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
   if (!host) return true;
   if (BLOCKED_HOSTNAMES.has(host)) return true;
   if (host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return true;

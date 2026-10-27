@@ -57,6 +57,7 @@ export function createGitHubBackend(env: Env): StorageBackend {
 
       const response = (await getGitHubFile(storageKey, metadata, env, {
         range: input.range,
+        method: input.method,
       })) as Response | null;
 
       if (!response) {

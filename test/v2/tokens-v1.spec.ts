@@ -102,6 +102,42 @@ describe('API tokens and v1', () => {
     expect(readBody.paste.content).toBe('hello paste');
   });
 
+  it('requires read scope for HEAD requests', async () => {
+    const cookie = await loginCookie();
+    const token = await createToken(['upload'], cookie);
+    const response = await exports.default.fetch(`${BASE}/api/v1/file/anything`, {
+      method: 'HEAD',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it('enforces token rate-limit policies', async () => {
+    const cookie = await loginCookie();
+    const created = await exports.default.fetch(`${BASE}/api/admin/tokens`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        name: `rate-${Date.now()}`,
+        scopes: ['read'],
+        expiresAt: null,
+        policies: { rateLimit: { windowMs: 60000, max: 1 } },
+      }),
+    });
+    expect(created.status).toBe(201);
+    const token = ((await created.json()) as { token: string }).token;
+
+    const first = await exports.default.fetch(`${BASE}/api/v1/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(first.status).toBe(200);
+
+    const second = await exports.default.fetch(`${BASE}/api/v1/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(second.status).toBe(429);
+  });
+
   it('uploads and serves bytes through v1', async () => {
     const cookie = await loginCookie();
     const token = await createToken(['upload', 'read', 'delete'], cookie);

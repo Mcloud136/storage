@@ -80,7 +80,7 @@ export async function incrementGuestCount(request: Request, env: Env): Promise<v
 
   try {
     const current = parseInt((await env.img_url.get(key)) || '0', 10) || 0;
-    await env.img_url.put(key, String(current + 1));
+    await env.img_url.put(key, String(current + 1), { expirationTtl: 2 * 24 * 60 * 60 });
   } catch {
     // Guest counters are best-effort; never fail an upload on counter errors.
   }

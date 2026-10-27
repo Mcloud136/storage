@@ -15,7 +15,15 @@ export const uploadFromUrlRoutes = new Hono<{ Bindings: Env }>();
 function maxBytesFor(storageMode: string): number {
   if (storageMode === 'telegram') return 20 * MB;
   if (storageMode === 'huggingface') return 35 * MB;
-  return 100 * MB;
+  return 50 * MB;
+}
+
+function safeDecodeFileName(value: string): string {
+  try {
+    return decodeURIComponent(value).trim();
+  } catch {
+    return String(value || '').trim();
+  }
 }
 
 function statusForError(error: unknown): number {
@@ -68,7 +76,7 @@ uploadFromUrlRoutes.post('/api/upload-from-url', async (c) => {
   }
 
   const finalUrl = new URL(fetched.finalUrl);
-  let fileName = decodeURIComponent(finalUrl.pathname.split('/').pop() || '').trim();
+  let fileName = safeDecodeFileName(finalUrl.pathname.split('/').pop() || '');
   if (!fileName) {
     fileName = `url_${Date.now()}`;
   }

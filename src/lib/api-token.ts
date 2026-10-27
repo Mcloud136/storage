@@ -376,6 +376,75 @@ export interface PolicyCheck {
   status?: number;
 }
 
+export async function checkTokenRateLimit(
+  env: Env,
+  record: ApiTokenRecord
+): Promise<PolicyCheck> {
+  const limit = record.policies?.rateLimit;
+  if (!limit) return { ok: true };
+
+  const key = `token_rl:${record.id}`;
+  const now = Date.now();
+  let state = await env.img_url.get<{ windowStart: number; count: number }>(key, {
+    type: 'json',
+  }).catch(() => null);
+
+  if (
+    !state ||
+    !Number.isFinite(state.windowStart) ||
+    !Number.isFinite(state.count) ||
+    now - state.windowStart >= limit.windowMs
+  ) {
+    state = { windowStart: now, count: 0 };
+  }
+
+  if (state.count >= limit.max) {
+    return {
+      ok: false,
+      code: 'RATE_LIMITED',
+      message: `Token rate limit exceeded (${limit.max} requests per ${Math.ceil(limit.windowMs / 1000)}s).`,
+      status: 429,
+    };
+  }
+
+  await env.img_url.put(
+    key,
+    JSON.stringify({ windowStart: state.windowStart, count: state.count + 1 }),
+    { expirationTtl: Math.max(60, Math.ceil(limit.windowMs / 1000) + 60) }
+  );
+  return { ok: true };
+}
+
+export function checkTokenSourceHost(
+  record: ApiTokenRecord,
+  sourceUrl: string
+): PolicyCheck {
+  const allowed = record.policies?.allowedSourceHosts;
+  if (!allowed?.length) return { ok: true };
+
+  let hostname = '';
+  try {
+    hostname = new URL(sourceUrl).hostname.toLowerCase();
+  } catch {
+    return {
+      ok: false,
+      code: 'POLICY_SOURCE_DENIED',
+      message: 'Token policy requires a valid source host.',
+      status: 403,
+    };
+  }
+
+  if (!allowed.includes(hostname)) {
+    return {
+      ok: false,
+      code: 'POLICY_SOURCE_DENIED',
+      message: `Token policy denies source host "${hostname}".`,
+      status: 403,
+    };
+  }
+  return { ok: true };
+}
+
 export function checkTokenUploadPolicy(
   record: ApiTokenRecord,
   input: { storage: string; mime?: string; sizeBytes: number; folderPath?: string }

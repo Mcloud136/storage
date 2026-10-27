@@ -190,8 +190,6 @@ function getFileLinkSecrets(env: Env): string[] {
     env.FILE_URL_SECRET,
     env.TG_FILE_URL_SECRET,
     getTelegramToken(env),
-    'k-vault-default-secret',
-    'tgbed-default-secret',
   ];
 
   return [
@@ -293,6 +291,9 @@ export async function createSignedTelegramFileId(
   };
   const payload = base64UrlEncode(JSON.stringify(payloadObject));
   const [primarySecret] = getFileLinkSecrets(env);
+  if (!primarySecret) {
+    throw new Error('FILE_URL_SECRET or TG_Bot_Token is required for signed links.');
+  }
   const signature = await signPayload(payload, primarySecret);
   return `tgs_${payload}.${signature}.${extension}`;
 }
@@ -385,6 +386,7 @@ async function postTelegramMessage(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(8000),
   });
   const data = (await response.json().catch(() => ({}))) as TelegramApiResult;
   return { ok: response.ok && Boolean(data?.ok), data };
@@ -459,7 +461,7 @@ export async function sendTelegramUploadNotice(
 export async function getTelegramFilePath(env: Env, fileId: string): Promise<string | null> {
   try {
     const url = `${buildTelegramBotApiUrl(env, 'getFile')}?file_id=${encodeURIComponent(fileId)}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!response.ok) return null;
     const data = (await response.json().catch(() => ({}))) as TelegramApiResult;
     return data?.ok && data.result?.file_path ? data.result.file_path : null;
@@ -483,7 +485,9 @@ export async function getTelegramBotInfo(env: Env): Promise<TelegramBotInfo> {
   }
 
   try {
-    const response = await fetch(buildTelegramBotApiUrl(env, 'getMe'));
+    const response = await fetch(buildTelegramBotApiUrl(env, 'getMe'), {
+      signal: AbortSignal.timeout(8000),
+    });
     const data = (await response.json().catch(() => ({}))) as TelegramApiResult;
     if (response.ok && data?.ok) {
       return {
@@ -518,6 +522,7 @@ export async function deleteTelegramMessage(
     await fetch(buildTelegramBotApiUrl(env, 'deleteMessage'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(8000),
       body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
     });
   } catch {

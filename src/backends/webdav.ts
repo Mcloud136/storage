@@ -190,6 +190,7 @@ export async function checkWebDAVConnection(
         const optionsResponse = await fetch(rootUrl, {
           method: 'OPTIONS',
           headers: buildAuthOverrideHeaders(config, mode, { Depth: '0' }),
+          signal: AbortSignal.timeout(8000),
         });
         if (optionsResponse.ok) {
           return { connected: true, configured: true, message: 'Connected' };
@@ -206,6 +207,7 @@ export async function checkWebDAVConnection(
             'Content-Type': 'application/xml; charset=utf-8',
           }),
           body: propfindBody,
+          signal: AbortSignal.timeout(8000),
         });
         if (propfindResponse.ok || propfindResponse.status === 207) {
           return { connected: true, configured: true, message: 'Connected' };

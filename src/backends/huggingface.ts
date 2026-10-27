@@ -58,6 +58,7 @@ export function createHuggingFaceBackend(env: Env): StorageBackend {
 
       const response = (await getHuggingFaceFile(objectPath, env, {
         range: input.range,
+        method: input.method,
       })) as Response;
 
       if (!response) {

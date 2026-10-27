@@ -3,6 +3,8 @@ import type { Env } from '../env';
 import type { FileMetadata } from '../core/keys';
 import type { ApiTokenRecord } from '../lib/api-token';
 import {
+  checkTokenRateLimit,
+  checkTokenSourceHost,
   checkTokenUploadPolicy,
   getIdempotentResponse,
   parseBearerToken,
@@ -32,6 +34,20 @@ type V1Env = {
 export const v1Routes = new Hono<V1Env>();
 
 const MB = 1024 * 1024;
+
+function safeDecodeFileName(value: string): string {
+  try {
+    return decodeURIComponent(value).trim();
+  } catch {
+    return String(value || '').trim();
+  }
+}
+
+function maxBytesForStorage(storageMode: string): number {
+  if (storageMode === 'telegram') return 20 * MB;
+  if (storageMode === 'huggingface') return 35 * MB;
+  return 50 * MB;
+}
 
 function allowedOrigins(env: Env): string[] {
   return String(env.API_CORS_ORIGINS || '')
@@ -70,7 +86,7 @@ function applyCors(c: { res?: Response }, headers: Headers): void {
 }
 
 function requiredScope(method: string, pathname: string): string {
-  const methodUpper = method.toUpperCase();
+  const methodUpper = method.toUpperCase() === 'HEAD' ? 'GET' : method.toUpperCase();
   const path = pathname.replace(/\/+$/, '') || '/';
 
   if (methodUpper === 'GET' && path === '/api/v1/capabilities') return '';
@@ -109,6 +125,11 @@ v1Routes.use('*', async (c, next) => {
     return apiError(result.code, result.message, result.status);
   }
 
+  const rate = await checkTokenRateLimit(c.env, result.record);
+  if (!rate.ok) {
+    return apiError(rate.code || 'RATE_LIMITED', rate.message || 'Rate limited.', rate.status || 429);
+  }
+
   c.set('apiToken', result.record);
   await next();
   applyCors(c, headers);
@@ -122,7 +143,13 @@ v1Routes.get('/capabilities', (c) => {
       apiVersion: 'v1',
       upload: true,
       importFromUrl: true,
-      maxUploadSize: 100 * MB,
+      maxUploadSize: 50 * MB,
+      storageLimits: {
+        telegram: 20 * MB,
+        huggingface: 35 * MB,
+        webdav: 50 * MB,
+        github: 50 * MB,
+      },
       storages,
       imageTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif', 'image/bmp'],
     },
@@ -343,11 +370,16 @@ v1Routes.post('/import', async (c) => {
   });
   if (!policy.ok) return apiError(policy.code || 'POLICY_DENIED', policy.message || 'Denied.', policy.status || 403);
 
-  const maxBytes = Math.min(token.policies?.maxFileSize || 100 * MB, 100 * MB);
+  const storageLimit = maxBytesForStorage(storageMode);
+  const maxBytes = Math.min(token.policies?.maxFileSize || storageLimit, storageLimit);
   try {
     const fetched = await fetchRemoteStrict(url, maxBytes);
+    const sourceCheck = checkTokenSourceHost(token, fetched.finalUrl);
+    if (!sourceCheck.ok) {
+      return apiError(sourceCheck.code || 'POLICY_SOURCE_DENIED', sourceCheck.message || 'Denied.', sourceCheck.status || 403);
+    }
     const finalUrl = new URL(fetched.finalUrl);
-    let fileName = decodeURIComponent(finalUrl.pathname.split('/').pop() || '').trim();
+    let fileName = safeDecodeFileName(finalUrl.pathname.split('/').pop() || '');
     if (!fileName) fileName = `url_${Date.now()}`;
     if (!fileName.includes('.')) {
       fileName = `${fileName}.${guessExtensionFromMimeType(fetched.contentType, 'bin')}`;
