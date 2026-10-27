@@ -22,6 +22,7 @@ const SYSTEM_PREFIXES = [
   'audit:',
   'guest:',
   'folder:',
+  'webhook:',
 ];
 
 export function isSystemKey(key: string): boolean {

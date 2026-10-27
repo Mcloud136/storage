@@ -235,30 +235,31 @@ async function recordAction(
   return json({ success: true });
 }
 
-manageRoutes.get('/api/manage/toggleLike/:id', async (c) =>
+manageRoutes.post('/api/manage/toggleLike/:id', async (c) =>
   recordAction(c, c.req.param('id'), (metadata) => ({
     ...metadata,
     liked: !metadata.liked,
   }))
 );
 
-manageRoutes.get('/api/manage/editName/:id', async (c) => {
-  const newName = new URL(c.req.url).searchParams.get('newName') || '';
+manageRoutes.post('/api/manage/editName/:id', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const newName = String(body.newName ?? new URL(c.req.url).searchParams.get('newName') ?? '');
   return recordAction(c, c.req.param('id'), (metadata) => ({
     ...metadata,
     fileName: newName || metadata.fileName,
   }));
 });
 
-manageRoutes.get('/api/manage/block/:id', async (c) =>
+manageRoutes.post('/api/manage/block/:id', async (c) =>
   recordAction(c, c.req.param('id'), (metadata) => ({ ...metadata, ListType: 'Block' }))
 );
 
-manageRoutes.get('/api/manage/white/:id', async (c) =>
+manageRoutes.post('/api/manage/white/:id', async (c) =>
   recordAction(c, c.req.param('id'), (metadata) => ({ ...metadata, ListType: 'White' }))
 );
 
-manageRoutes.get('/api/manage/delete/:id', async (c) => {
+manageRoutes.post('/api/manage/delete/:id', async (c) => {
   const unauthorized = await requireAdmin(c.req.raw, c.env);
   if (unauthorized) return unauthorized;
 

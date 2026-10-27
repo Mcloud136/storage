@@ -36,17 +36,23 @@ describe('manage API', () => {
     expect(listBody.keys.some((item) => item.name === key)).toBe(true);
 
     const like = await exports.default.fetch(`${BASE}/api/manage/toggleLike/${encodeURIComponent(key)}`, {
+      method: 'POST',
       headers: { Cookie: cookie },
     });
     expect(like.status).toBe(200);
 
     const rename = await exports.default.fetch(
-      `${BASE}/api/manage/editName/${encodeURIComponent(key)}?newName=renamed.txt`,
-      { headers: { Cookie: cookie } }
+      `${BASE}/api/manage/editName/${encodeURIComponent(key)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+        body: JSON.stringify({ newName: 'renamed.txt' }),
+      }
     );
     expect(rename.status).toBe(200);
 
     const block = await exports.default.fetch(`${BASE}/api/manage/block/${encodeURIComponent(key)}`, {
+      method: 'POST',
       headers: { Cookie: cookie },
     });
     expect(block.status).toBe(200);

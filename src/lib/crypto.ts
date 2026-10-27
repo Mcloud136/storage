@@ -15,6 +15,65 @@ export async function sha256Hex(
     .join('');
 }
 
+const PASSWORD_ITERATIONS = 20000;
+
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomHex(16);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(String(password || '')),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: new TextEncoder().encode(salt),
+      iterations: PASSWORD_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    256
+  );
+  const digest = Array.from(new Uint8Array(bits))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+  return `pbkdf2$${PASSWORD_ITERATIONS}$${salt}$${digest}`;
+}
+
+export async function verifyPassword(
+  password: string,
+  storedHash: string,
+  legacySalt = ''
+): Promise<boolean> {
+  const stored = String(storedHash || '');
+  if (stored.startsWith('pbkdf2$')) {
+    const [, iterationsText, salt, expected] = stored.split('$');
+    const iterations = Number(iterationsText);
+    if (!Number.isFinite(iterations) || iterations <= 0 || !salt || !expected) return false;
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(String(password || '')),
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations, hash: 'SHA-256' },
+      keyMaterial,
+      256
+    );
+    const digest = Array.from(new Uint8Array(bits))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    return timingSafeEqualString(digest, expected);
+  }
+
+  const legacy = await sha256Hex(`${legacySalt}:${password}`);
+  return timingSafeEqualString(legacy, stored);
+}
+
 export function timingSafeEqualString(a: string, b: string): boolean {
   const left = String(a ?? '');
   const right = String(b ?? '');

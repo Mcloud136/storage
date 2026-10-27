@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FileMetadata } from '../../src/core/keys';
 import { verifyShareAccess } from '../../src/lib/share';
+import { hashPassword } from '../../src/lib/crypto';
 
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -32,7 +33,17 @@ describe('share access', () => {
     expect(result.response?.status).toBe(410);
   });
 
-  it('requires and validates a password', async () => {
+  it('validates PBKDF2 share passwords', async () => {
+    const metadata: FileMetadata = { sharePasswordHash: await hashPassword('secret') };
+    const missing = await verifyShareAccess(request(), metadata, 'k');
+    expect(missing.response?.status).toBe(401);
+    const wrong = await verifyShareAccess(request('https://example.com/file/test?password=nope'), metadata, 'k');
+    expect(wrong.response?.status).toBe(403);
+    const correct = await verifyShareAccess(request('https://example.com/file/test?password=secret'), metadata, 'k');
+    expect(correct.response).toBeNull();
+  });
+
+  it('requires and validates a legacy password', async () => {
     const salt = 'salt123';
     const metadata: FileMetadata = {
       sharePasswordSalt: salt,

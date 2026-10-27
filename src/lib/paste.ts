@@ -1,5 +1,5 @@
 import type { Env } from '../env';
-import { randomString, sha256Hex, timingSafeEqualString } from './crypto';
+import { hashPassword, randomString, verifyPassword } from './crypto';
 
 const PASTE_PREFIX = 'paste:';
 
@@ -42,7 +42,7 @@ export async function createPaste(
     createdAt: Date.now(),
     expiresAt: expiresAt && Number.isFinite(expiresAt) ? Math.floor(expiresAt) : null,
     passwordSalt: salt,
-    passwordHash: salt && password ? await sha256Hex(`${salt}:${password}`) : null,
+    passwordHash: password ? await hashPassword(password) : null,
   };
 
   await env.img_url.put(pasteKey(id), JSON.stringify(record), {
@@ -67,8 +67,12 @@ export async function getPaste(
 
   if (record.passwordHash) {
     if (!password) return { record: null, status: 401, error: 'Paste password required.' };
-    const expected = await sha256Hex(`${record.passwordSalt || ''}:${password}`);
-    if (!timingSafeEqualString(expected, record.passwordHash)) {
+    const valid = await verifyPassword(
+      password,
+      record.passwordHash,
+      record.passwordSalt || ''
+    );
+    if (!valid) {
       return { record: null, status: 403, error: 'Paste password invalid.' };
     }
   }

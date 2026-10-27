@@ -44,6 +44,7 @@ describe('Telegram webhook', () => {
   it('writes metadata and returns a signed direct link', async () => {
     const fileId = `FILEWEBHOOK${Date.now()}`;
     const response = await webhookRequest('test-webhook-secret', {
+      update_id: Date.now(),
       message: {
         message_id: 42,
         chat: { id: -1001234567890 },
@@ -65,5 +66,28 @@ describe('Telegram webhook', () => {
     const stored = await env.img_url.getWithMetadata<FileMetadata>(`${fileId}.txt`);
     expect(stored?.metadata?.fromWebhook).toBe(true);
     expect(stored?.metadata?.telegramFileId).toBe(fileId);
+  });
+
+  it('ignores duplicate update_id deliveries', async () => {
+    const updateId = Date.now() + 1;
+    const payload = {
+      update_id: updateId,
+      message: {
+        message_id: 43,
+        chat: { id: -1001234567890 },
+        document: {
+          file_id: `FILEDUP${updateId}`,
+          file_name: 'dup.txt',
+          mime_type: 'text/plain',
+          file_size: 1,
+        },
+      },
+    };
+    const first = await webhookRequest('test-webhook-secret', payload);
+    expect(first.status).toBe(200);
+    const second = await webhookRequest('test-webhook-secret', payload);
+    expect(second.status).toBe(200);
+    const body = (await second.json()) as { duplicate?: boolean };
+    expect(body.duplicate).toBe(true);
   });
 });

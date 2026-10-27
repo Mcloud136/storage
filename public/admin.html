@@ -3855,8 +3855,8 @@ curl -X POST "{SITE_URL}/api/v1/import" \
         // 乐观更新收藏状态
         this.tableData[fileIndex].metadata.liked = !(this.tableData[fileIndex].metadata.liked ?? false);
         // 发送请求更新服务器数据
-        var requestOptions = { method: 'GET', redirect: 'follow', credentials: 'include' };
-        fetch(`./api/manage/toggleLike/${name}`, requestOptions)
+        var requestOptions = { method: 'POST', redirect: 'follow', credentials: 'include' };
+        fetch(`./api/manage/toggleLike/${encodeURIComponent(name)}`, requestOptions)
           .then(response => response.json())
           .then(result => {
             if (!result.success) {  // 如果服务器更新失败，将状态还原
@@ -3880,7 +3880,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
           type: 'warning'
         }).then(() => {
           const encodedKey = encodeURIComponent(key);
-          fetch(`./api/manage/delete/${encodedKey}`, { method: 'GET', credentials: 'include' })
+          fetch(`./api/manage/delete/${encodedKey}`, { method: 'POST', credentials: 'include' })
             .then(response => {
               if (!response.ok) throw new Error('删除失败');
               return response.json();
@@ -3966,7 +3966,7 @@ curl -X POST "{SITE_URL}/api/v1/import" \
         }).then(() => {
           const promises = this.selectedFiles.map(file => {
             const encodedKey = encodeURIComponent(file.name);
-            return fetch(`./api/manage/delete/${encodedKey}`, { method: 'GET', credentials: 'include' })
+            return fetch(`./api/manage/delete/${encodedKey}`, { method: 'POST', credentials: 'include' })
               .then(r => r.json())
               .then(result => ({ name: file.name, success: result.success }))
               .catch(() => ({ name: file.name, success: false }));
@@ -4330,9 +4330,11 @@ curl -X POST "{SITE_URL}/api/v1/import" \
             return true;
           }
         }).then(({ value }) => {
-          fetch(`./api/manage/editName/${item.name}?newName=${encodeURIComponent(value)}`, {
-            method: 'GET',
-            credentials: 'include'
+          fetch(`./api/manage/editName/${encodeURIComponent(item.name)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ newName: value })
           })
           .then(response => response.json())
           .then(result => {

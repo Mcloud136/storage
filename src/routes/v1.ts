@@ -19,7 +19,7 @@ import {
   updateMetadata,
 } from '../lib/file-store';
 import { getMimeType } from '../lib/media';
-import { randomString, sha256Hex } from '../lib/crypto';
+import { hashPassword } from '../lib/crypto';
 import { createBackend, isBackendConfigured, SUPPORTED_STORAGE_MODES } from '../backends';
 import { StorageError } from '../backends/types';
 import { uploadSource, UploadError, type WaitUntilContext } from '../services/upload';
@@ -232,9 +232,7 @@ async function applyShareMetadata(
 
   const password = String(body.password || '');
   if (password) {
-    const salt = randomString(12);
-    metadata.sharePasswordSalt = salt;
-    metadata.sharePasswordHash = await sha256Hex(`${salt}:${password}`);
+    metadata.sharePasswordHash = await hashPassword(password);
   }
 
   const expiresIn = Number(body.expires_in ?? body.expiresIn ?? 0);

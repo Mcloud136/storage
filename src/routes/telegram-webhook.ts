@@ -36,6 +36,14 @@ telegramWebhookRoutes.post('/api/telegram/webhook', async (c) => {
   }
 
   const update = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const updateId = Number(update.update_id || 0);
+  if (updateId > 0 && env.img_url) {
+    const duplicate = await env.img_url.get(`webhook:${updateId}`);
+    if (duplicate) {
+      return json({ ok: true, duplicate: true });
+    }
+  }
+
   const message = (update.message || update.channel_post) as Record<string, unknown> | undefined;
   if (!message) {
     return json({ ok: true, ignored: 'no-message' });
@@ -101,6 +109,10 @@ telegramWebhookRoutes.post('/api/telegram/webhook', async (c) => {
     },
     env
   );
+
+  if (updateId > 0 && env.img_url) {
+    await env.img_url.put(`webhook:${updateId}`, '1', { expirationTtl: 24 * 3600 });
+  }
 
   return json({
     ok: true,
